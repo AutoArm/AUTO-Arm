@@ -97,6 +97,8 @@ def extract_pitch_from_rotation(rvec):
     return pitch_degrees
 
 def detect_aruco(image, target_id):
+    aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
+    parameters = cv2.aruco.DetectorParameters()
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     detector = cv2.aruco.ArucoDetector(aruco_dict, parameters)
     corners, ids, _ = detector.detectMarkers(gray)
@@ -120,7 +122,6 @@ def estimate_pose(corners, mtx, dist, marker_length):
     success, rvec, tvec = cv2.solvePnP(obj_points, corners, mtx, dist)
     return rvec, tvec
 
-def draw_axis(img, rvec, tvec, mtx, dist):
     cv2.drawFrameAxes(img, mtx, dist, rvec, tvec, 0.1)  # length of the axis is 0.1 meter
 
 def average_rotation_vectors(rvecs):
@@ -211,10 +212,35 @@ def move_to(arm,coor):
     code = arm.set_servo_angle(servo_id=1,angle=new_angle,wait=True,is_radian=False,speed=speeds)
     code = arm.set_position_aa(highcoor, speed=speeds,mvacc=100, wait=True)
     code = arm.set_position_aa(coor, speed=speeds,mvacc=100, wait=True)
+def center_arm(arm,frame):
+    # check_saturation(frame)
+        
+    intensity,laser_center = rgb_to_intensity_and_peak(frame)
+    print(laser_center)
+    center_z=laser_center[1]
+    center_x=laser_center[0]
+    height, width, channels = frame.shape  
     
+    if laser_center is not None:
+        cv2.circle(frame, laser_center, 10, (0, 255, 0), -1)
+        cv2.imshow("cams",frame)
+        cv2.waitKey(100)
+        movex=(width//2-center_x)/110
+        movez=(height//2-center_z)/110
+        print("center found",center_x,center_z,width,height,"and move right ",movex,movez)
+        if abs(movez)<=1 and abs(movex)<=1:
+            return 1
+        code,place=arm.get_position_aa(is_radian=False)
+        target_move=[place[0]+movex/10]+[place[1]]+[place[2]-movez/10]+place[3:]
+        if target_move[0]>400 or target_move[2]>320 or target_move[0]<200 or target_move[2]<190:
+            return -1
+        code = arm.set_position_aa(target_move, speed=20,mvacc=100, wait=True)
+        return 0
+    else:
+        return -1   
 
 
-def pickup_claw(arm,coor,pipeline):
+def pickup_claw(arm,coor,pipeline,target_id):
     arm.set_gripper_enable(True)
     code = arm.set_gripper_speed(2000)
     arm.set_gripper_position(850,wait=True)
@@ -239,7 +265,7 @@ def pickup_claw(arm,coor,pipeline):
     highcoor=[coor[0]-75]+[coor[1]-35]+[400]+coor[3:]
     code = arm.set_servo_angle(servo_id=1,angle=new_angle,wait=True,is_radian=False,speed=speeds)
     code = arm.set_position_aa(highcoor, speed=speeds,mvacc=100, wait=True)
-    height=fine_adjust(arm,pipeline)
+    height=fine_adjust(arm,pipeline,target_id)
     height=height-100
     height=400-height
     height=height
@@ -338,14 +364,14 @@ def drop_claw(arm,coor):
         quad=3
     else:
         quad=4
-    code=arm.set_servo_angle(servo_id=1,wait=True,angle=new_angle,is_radian=False,speed=100)
-    code = arm.set_position_aa(highcoor,is_radian=False, speed=100,  mvacc=100, wait=True)
-    code = arm.set_position_aa(coor,is_radian=False, speed=80,  mvacc=100, wait=True)
+    code=arm.set_servo_angle(servo_id=1,wait=True,angle=new_angle,is_radian=False,speed=50)
+    code = arm.set_position_aa(highcoor,is_radian=False, speed=50,  mvacc=100, wait=True)
+    code = arm.set_position_aa(coor,is_radian=False, speed=50,  mvacc=100, wait=True)
 
-    arm.set_gripper_position(800,wait=True)
+    arm.set_gripper_position(850,wait=True)
     arm.set_tcp_load(weight=0.61, center_of_gravity=(0.06125, 0.0458, 0.0375))
     code = arm.set_position_aa(endcoor,is_radian=False, speed=100,  mvacc=100, wait=True)
-    code=arm.set_servo_angle(angle=[180,75,-180,20,0,90,-60],speed=100,is_radian=False,wait=True)
+    code=arm.set_servo_angle(angle=[180,75,-180,20,0,90,-60],speed=60,is_radian=False,wait=True)
     return
 def validate(self,coor):
     x=coor[0]
@@ -424,7 +450,7 @@ def calculate_rotation_angle(corner):
 
     return angle_deg
 
-def fine_adjust(arm,pipeline):
+def fine_adjust(arm,pipeline,target_id):
     leave=False
     depth_image=None
     corners=None
@@ -475,40 +501,234 @@ def rgb_to_intensity_and_peak(frame):
     min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(intensity)
 
     return intensity, max_loc
-def center_arm(arm,frame):
-    # check_saturation(frame)
-        
-    intensity,laser_center = rgb_to_intensity_and_peak(frame)
-    print(laser_center)
-    center_z=laser_center[1]
-    center_x=laser_center[0]
-    height, width, channels = frame.shape  
 
-    movex=(width//2-center_x)/10
-    movez=(height//2-center_z)/10
-    print("center found",center_x,center_z,480,640,"and",movex,movez)
-    if laser_center is not None:
-        cv2.circle(frame, laser_center, 10, (0, 255, 0), -1)
-        cv2.waitKey(100)
-        height, width, channels = frame.shape  
-        movex=(width//2-center_x)/20
-        movez=(height//2-center_z)/20
-        if abs(movez)<=1 and abs(movex)<=1:
-            return 1
+
+# Methods to be used
+def initialize_cams():
+    calibration_data = np.load('stereo_calibration2.npz')
+    mtx1 = calibration_data['mtx1']
+    dist1 = calibration_data['dist1']
+    mtx2 = calibration_data['mtx2']
+    dist2 = calibration_data['dist2']
+    R = calibration_data['R']
+    T = calibration_data['T']
+    actual_distance = 0.23  # 23 cm
+    calibrated_distance = 0.22  # 22 cm
+    pipeline = rs.pipeline()
+    config = rs.config()
+    config.enable_stream(rs.stream.depth, 640, 480, rs.format.z16, 15)
+    config.enable_stream(rs.stream.color, 640, 480, rs.format.bgr8, 15)
+    pipeline.start(config)
+
+    # Calculate the scaling factor
+    scale_factor = actual_distance / calibrated_distance
+    print(f"Scaling factor: {scale_factor}")
+
+    # Adjust the translation vector
+    T = T * scale_factor
+    print(f"Scaled translation vector:\n{T}")
+
+    # Compute projection matrices
+    proj1 = mtx1 @ np.hstack((np.eye(3), np.zeros((3, 1))))
+    proj2 = mtx2 @ np.hstack((R, T))
+    cap1 = cv2.VideoCapture(0, cv2.CAP_MSMF)
+    cap1.set(cv2.CAP_PROP_FRAME_WIDTH, 3840)
+    cap1.set(cv2.CAP_PROP_FRAME_HEIGHT, 2160)
+    cap2 = cv2.VideoCapture(4, cv2.CAP_MSMF)
+    cap2.set(cv2.CAP_PROP_FRAME_WIDTH, 3840)
+    cap2.set(cv2.CAP_PROP_FRAME_HEIGHT, 2160)
+    cap3 = cv2.VideoCapture(2, cv2.CAP_MSMF)
+    cap3.set(cv2.CAP_PROP_FRAME_WIDTH, 3840)
+    cap3.set(cv2.CAP_PROP_FRAME_HEIGHT, 2160)
+    return (cap1,cap2,cap3,pipeline)
+def pickup_element_with_tag(cams,tag_id):
+    aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
+    parameters = cv2.aruco.DetectorParameters()
+    cap1,cap2,cap3,pipeline=cams
+    calibration_data = np.load('stereo_calibration2.npz')
+    mtx1 = calibration_data['mtx1']
+    dist1 = calibration_data['dist1']
+    mtx2 = calibration_data['mtx2']
+    dist2 = calibration_data['dist2']
+    target_id = tag_id
+    arm.set_gripper_enable(True)
+    code = arm.set_gripper_speed(2000)
+    arm.set_gripper_position(850,wait=True)
+    marker_length = 0.062  # Length of the marker's side in meters
+    while True: 
+        ret1, frame1 = cap1.read()
+        ret2, frame2 = cap2.read()
+
+        if not ret1 or not ret2:
+            print("Error: Could not read frame from one or both cameras.")
+            break
+
+        corners1, id1 = detect_aruco(frame1, target_id)
+        corners2, id2 = detect_aruco(frame2, target_id)
+
+        if corners1 is not None and corners2 is not None:
+            rvec1, tvec1 = estimate_pose(corners1, mtx1, dist1, marker_length)
+            rvec2, tvec2 = estimate_pose(corners2, mtx2, dist2, marker_length)
+
+            print(f"Target ArUco tag detected!")
+            print(f"Camera 1 - Rotation Vector:\n{rvec1}\nTranslation Vector:\n{tvec1}")
+            print(f"Camera 2 - Rotation Vector:\n{rvec2}\nTranslation Vector:\n{tvec2}")
+
+            avg_rvec = average_rotation_vectors([rvec1, rvec2])
+            avg_tvec = np.mean([tvec1, tvec2], axis=0)
+
+            print(f"Averaged Rotation Vector:\n{avg_rvec}\nAveraged Translation Vector:\n{avg_tvec}")
+            avg_rvec_text = f"Avg Rvec: {avg_rvec[0][0]:.2f}, {avg_rvec[1][0]:.2f}, {avg_rvec[2][0]:.2f}"
+            avg_tvec_text = f"Avg Tvec: {avg_tvec[0][0]:.2f}, {avg_tvec[1][0]:.2f}, {avg_tvec[2][0]:.2f}"
+            
+            mem=avg_tvec.flatten()
+            rot=avg_rvec.flatten()
+            mem=mem.tolist()
+            mem.extend([-180,0,0])
+            mem[0]=-mem[0]*1000
+            mem[1]=mem[1]*1000
+            mem[2]=(1.2-mem[2])*1000
+            mem[1]=pickup_claw(arm,mem,pipeline,target_id)
+            
+            return mem
+        
+
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+def drop_element_at_position(arm,pos):
+    drop_claw(arm,pos)
+def center_robot_to_laser(cams,laz_pos):
+    move_to(arm,laz_pos)
+    cap1,cap2,cap3,pipeline=cams
+    centered=False
+    # save_folder = 'test_v3'
+    # if not os.path.exists(save_folder):
+    #     os.makedirs(save_folder)
+
+    # Initialize a counter for frame numbering
+    # frame_count = 0
+
+    def save_frame(frame):
+        global frame_count
+
+        # Create the filename with frame number
+        filename = os.path.join(save_folder, f'frame_{frame_count:04d}.png')  # Saves as frame_0000.png, frame_0001.png, ...
+
+        # Save the current frame to the folder
+        cv2.imwrite(filename, frame)
+        cv2.imshow('Camera 1',frame)
+        cv2.waitKey(1000)
+        # Increment the frame counter
+        frame_count += 1
+
+    leave=False
+
+    while leave is False:
+        ret, frame = cap3.read()
+        if not ret:
+            print("Error: Could not read frame.")
+            break
+        centered=center_arm(arm,frame)
+        if centered==-1:
+            break
+        elif centered==1:
+            # save_frame(frame)
+            leave=True
+    if leave:
         code,place=arm.get_position_aa(is_radian=False)
-        target_move=[place[0]+movex/90]+[place[1]]+[place[2]-movez/90]+place[3:]
-        if target_move[0]>400 or target_move[2]>320 or target_move[0]<200 or target_move[2]<190:
-            return -1
-        code = arm.set_position_aa(target_move, speed=50,mvacc=100, wait=True)
-        return 0
+        return place
     else:
         return -1
+def offset_coor(boxes,coor):
+    '''
+    offset a coordinate by how many elements between
+    '''
+    return [coor[0]]+[coor[1]-boxes*75]+coor[2:]
+def gohome():
+    code,place=arm.get_position_aa(is_radian=False)
+    code = arm.set_position_aa(place[:2]+[400]+place[3:], speed=80,mvacc=100, wait=True)
+    code=arm.set_servo_angle(angle=[180,75,-180,20,0,90,-60],speed=60,is_radian=False,wait=True)
+def readings(cams,step_size,steps):
+    cap1,cap2,cap3,pipeline=cams
+    centered=False
+    centers=[]
+    save_folder = 'Full_pipeline'
+    if not os.path.exists(save_folder):
+        os.makedirs(save_folder)
+
+    # Initialize a counter for frame numbering
+    frame_count = 0
+
+    def save_frame(frame,frame_count):
+
+        # Create the filename with frame number
+        filename = os.path.join(save_folder, f'frame_{frame_count:04d}.png')  # Saves as frame_0000.png, frame_0001.png, ...
+
+        # Save the current frame to the folder
+        cv2.imwrite(filename, frame)
+        cv2.imshow('Camera 1',frame)
+        cv2.waitKey(1000)
+        # Increment the frame counter
+        frame_count += 1
+
+    for step in range(steps):
+        leave=False
+
+        while leave is False:
+            ret, frame = cap3.read()
+            if not ret:
+                print("Error: Could not read frame.")
+                break
+            centered=center_arm(arm,frame)
+            if centered==-1:
+                break
+            elif centered==1:
+                save_frame(frame,frame_count)
+                frame_count+=1
+                leave=True
+        if leave:
+            code,place=arm.get_position_aa(is_radian=False)
+            centers.append(place)
+        else:
+            break
+        code,place=arm.get_position_aa(is_radian=False)
+        code = arm.set_position_aa([place[0]]+[place[1]-step*step_size]+place[2:], speed=50,mvacc=100, wait=True)
+    coordinates_array = np.array(centers)
+    return coordinates_array
+
 if __name__ == '__main__':
     print(cv2.__version__)
     # Load calibration dataS
-    camera_coor=[346.8, 267.2, 263.3, 140.77023, -112.177172, -0.118774]
+    start()
+    cap1,cap2,cap3,pipeline=initialize_cams()
+    cams=(cap1,cap2,cap3,pipeline)
 
+    # pickup camera
+    init_pos=pickup_element_with_tag(cams,4)
+
+    # find laser 
+    camera_coor=[343.797485, 386.645844, 264.287628, -129.934337, 124.828596, 0.956668]    
+    lens_pos=center_robot_to_laser(cams,camera_coor)
+    if lens_pos==-1:
+        print("Failed during finding")
+        raise Exception
+    gohome()
+    # drop camera back
+    drop_element_at_position(arm,init_pos)
+    print("here")
+    # pickup lens and put in front of camera
+    # pickup_element_with_tag(cams,2)
+    # drop_element_at_position(lens_pos)
+
+    # move camera to new position and center to beam
+    new_cam_pos=offset_coor(1,lens_pos)
+    pickup_element_with_tag(cams,4)
+    new_cam_pos=center_robot_to_laser(cams,new_cam_pos)
     
-    code,place=arm.get_position_aa(is_radian=False)
-    print(place)
+    reading=readings(cams,6,14)
+    cv2.destroyAllWindows()
+
+    pipeline.stop()
+
+
     

@@ -484,19 +484,19 @@ def center_arm(arm,frame):
     center_x=laser_center[0]
     height, width, channels = frame.shape  
 
-    movex=(width//2-center_x)/10
-    movez=(height//2-center_z)/10
+    movex=(width//2-center_x)
+    movez=(height//2-center_z)
     print("center found",center_x,center_z,480,640,"and",movex,movez)
     if laser_center is not None:
         cv2.circle(frame, laser_center, 10, (0, 255, 0), -1)
         cv2.waitKey(100)
         height, width, channels = frame.shape  
-        movex=(width//2-center_x)/20
-        movez=(height//2-center_z)/20
-        if abs(movez)<=1 and abs(movex)<=1:
+        movex=(width//2-center_x)
+        movez=(height//2-center_z)
+        if abs(movez)<=5 and abs(movex)<=5:
             return 1
         code,place=arm.get_position_aa(is_radian=False)
-        target_move=[place[0]+movex/90]+[place[1]]+[place[2]-movez/90]+place[3:]
+        target_move=[place[0]+movex/100]+[place[1]]+[place[2]]+place[3:]
         if target_move[0]>400 or target_move[2]>320 or target_move[0]<200 or target_move[2]<190:
             return -1
         code = arm.set_position_aa(target_move, speed=50,mvacc=100, wait=True)
@@ -506,7 +506,7 @@ def center_arm(arm,frame):
 if __name__ == '__main__':
     print(cv2.__version__)
     # Load calibration dataS
-    camera_coor=[346.8, 263.2, 263.3, 140.77023, -112.177172, -0.118774]
+    camera_coor=[343.797485, 386.645844, 264.287628, -129.934337, 124.828596, 0.956668]
 
     calibration_data = np.load('stereo_calibration2.npz')
     mtx1 = calibration_data['mtx1']
@@ -545,7 +545,7 @@ if __name__ == '__main__':
     cap1 = cv2.VideoCapture(0, cv2.CAP_MSMF)
     cap1.set(cv2.CAP_PROP_FRAME_WIDTH, 3840)
     cap1.set(cv2.CAP_PROP_FRAME_HEIGHT, 2160)
-    cap2 = cv2.VideoCapture(1, cv2.CAP_MSMF)
+    cap2 = cv2.VideoCapture(4, cv2.CAP_MSMF)
     cap2.set(cv2.CAP_PROP_FRAME_WIDTH, 3840)
     cap2.set(cv2.CAP_PROP_FRAME_HEIGHT, 2160)
 
@@ -555,6 +555,8 @@ if __name__ == '__main__':
     arm.set_gripper_position(850,wait=True)
     marker_length = 0.062  # Length of the marker's side in meters
     start()
+    print(mtx1)
+    print(mtx2)
     while True: 
         ret1, frame1 = cap1.read()
         ret2, frame2 = cap2.read()
@@ -603,10 +605,10 @@ if __name__ == '__main__':
 
     cap1.release()
     cap2.release()
-    cap2 = cv2.VideoCapture(4)
+    cap2 = cv2.VideoCapture(2)
     centered=False
     centers=[]
-    save_folder = 'test_v2'
+    save_folder = 'test_v3'
     if not os.path.exists(save_folder):
         os.makedirs(save_folder)
 
@@ -664,3 +666,5 @@ if __name__ == '__main__':
 
     (0.1848432539070972, 340.6015844147822) #prediction full
     (-0.16123984572221328, 544.4053214833644) # prediction dark
+    [[347.950958, 263.198761, 262.303833, 140.780772, -112.16388, -0.160887], [347.950958, 263.198761, 262.303833, 140.780772, -112.16388, -0.160887], [347.950989, 257.198822, 262.303894, 140.779283, -112.16577, -0.155673], [348.26947, 245.198456, 262.053955, 140.78358, -112.160327, -0.173033], [348.764954, 227.198013, 261.751129, 140.789424, -112.152993, -0.195665], [349.399231, 203.197586, 261.383728, 140.795555, -112.145201, -0.216979], [349.943146, 173.197327, 260.902435, 140.800998, -112.138383, -0.236001], [350.788147, 137.197281, 260.339355, 140.807071, -112.130705, -0.253419], [351.768768, 95.197212, 259.746704, 140.812915, -112.123314, -0.267514], [352.987213, 47.197174, 259.161865, 140.818645, -112.116095, -0.277827], [354.440582, -6.802771, 258.538055, 140.824775, -112.108417, -0.285276], [356.017273, -66.802574, 257.886261, 140.830906, -112.100682, -0.291005], [357.813568, -132.801498, 257.320099, 140.837381, -112.092546, -0.293183], [359.680359, -204.801514, 256.978363, 140.843167, -112.085327, -0.288427]]
+    #data from beam alignment
