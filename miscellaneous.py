@@ -509,6 +509,5 @@ if __name__ == '__main__':
     camera_coor=[346.8, 267.2, 263.3, 140.77023, -112.177172, -0.118774]
 
     
-    code,place=arm.get_position_aa(is_radian=False)
-    print(place)
+    drop_claw(arm, [252.77552592357904, -334.3178794152173, 522.8848963614945, -180, 0, 0])
     

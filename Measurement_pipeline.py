@@ -152,41 +152,6 @@ def start():
 
     except Exception as e:
         print('MainException: {}'.format(e))
-
-def pickup(arm,coor,pipeline):
-    print("Vacuum pickup at coordinate: ",coor)
-    speeds=80
-    x=coor[0]
-    y=coor[1]
-    new_angle=math.atan2(y,x)/math.pi*180
-    new_angle+=180
-    quad=0
-    if x>=0 and y>=0:
-        quad=1
-    elif x<0 and y>=0:
-        quad=2
-        new_angle=280
-    elif x<0 and y<0:
-        quad=3
-    else:
-        quad=4
-    highcoor=[coor[0]-75]+[coor[1]-35]+[400]+coor[3:]
-    code = arm.set_servo_angle(servo_id=1,angle=new_angle,wait=True,is_radian=False,speed=speeds)
-    code = arm.set_position_aa(highcoor, speed=speeds,mvacc=100, wait=True)
-    # code = arm.set_servo_angle(servo_id=7,angle=pitch,wait=True,is_radian=False,speed=speeds)
-    height=fine_adjust(arm,pipeline)
-    height=height-100
-    height=400-height
-    height=height
-    print(height)
-    code,place=arm.get_position_aa(is_radian=False)
-    arm.set_vacuum_gripper(on=True)
-    code = arm.set_position_aa(place[:2]+[height]+place[3:], speed=70,mvacc=100, wait=True)
-    arm.set_tcp_load(weight=0.8, center_of_gravity=(0.06125, 0.0458, 0.0375))    
-    code = arm.set_position_aa(place[:2]+[400]+place[3:], speed=speeds,mvacc=100, wait=True)
-    code = arm.set_servo_angle(angle=[180,75,-180,20,0,90,-60],is_radian=False,speed=speeds)
-    return height
-
 def move_to(arm,coor):
     arm.set_gripper_enable(True)
     code = arm.set_gripper_speed(2000)
@@ -238,8 +203,6 @@ def center_arm(arm,frame):
         return 0
     else:
         return -1   
-
-
 def pickup_claw(arm,coor,pipeline,target_id):
     arm.set_gripper_enable(True)
     code = arm.set_gripper_speed(2000)
@@ -266,20 +229,19 @@ def pickup_claw(arm,coor,pipeline,target_id):
     code = arm.set_servo_angle(servo_id=1,angle=new_angle,wait=True,is_radian=False,speed=speeds)
     code = arm.set_position_aa(highcoor, speed=speeds,mvacc=100, wait=True)
     height=fine_adjust(arm,pipeline,target_id)
+    print("after fine adjust")
     height=height-100
     height=400-height
-    height=height
-    print(height)
     code,place=arm.get_position_aa(is_radian=False)
+    pickup_pos=place[:2]+[height]+place[3:]
     code = arm.set_position_aa(place[:2]+[height]+place[3:], speed=speeds,mvacc=100, wait=True)
-    arm.set_gripper_position(670,wait=True) 
+    arm.set_gripper_position(630,wait=True) 
 
     arm.set_tcp_load(weight=0.8, center_of_gravity=(0.06125, 0.0458, 0.0375))
     code = arm.set_position_aa(place[:2]+[400]+place[3:], speed=speeds,mvacc=100, wait=True)
     code = arm.set_servo_angle(angle=[180,75,-180,20,0,90,-60],is_radian=False,speed=speeds)
 
-    return height
-
+    return pickup_pos
 def pickup_claw_stay(arm,coor,pipeline):
     arm.set_gripper_enable(True)
     code = arm.set_gripper_speed(1000)
@@ -320,31 +282,6 @@ def pickup_claw_stay(arm,coor,pipeline):
     
 
     return place
-def drop(arm,coor):
-    highcoor=coor[:2]+[400]+coor[3:]
-    x=coor[0]
-    y=coor[1]
-    new_angle=math.atan2(y,x)/math.pi*180
-    new_angle+=180
-
-    if x>=0 and y>=0:
-        quad=1
-    elif x<0 and y>=0:
-        quad=2
-        new_angle=280
-    elif x<0 and y<0:
-        quad=3
-    else:
-        quad=4
-    code=arm.set_servo_angle(servo_id=1,wait=True,angle=new_angle,is_radian=False,speed=100)
-    code = arm.set_position_aa(highcoor,is_radian=False, speed=100,  mvacc=100, wait=True)
-    code = arm.set_position_aa(coor,is_radian=False, speed=80,  mvacc=100, wait=True)
-
-    arm.set_vacuum_gripper(on=False)
-    arm.set_tcp_load(weight=0.61, center_of_gravity=(0.06125, 0.0458, 0.0375))
-    code = arm.set_position_aa(highcoor,is_radian=False, speed=100,  mvacc=100, wait=True)
-    code=arm.set_servo_angle(angle=[180,75,-180,20,0,90,-60],speed=100,is_radian=False,wait=True)
-    return
 def drop_claw(arm,coor):
     code = arm.set_gripper_speed(1000)
 
@@ -372,43 +309,6 @@ def drop_claw(arm,coor):
     arm.set_tcp_load(weight=0.61, center_of_gravity=(0.06125, 0.0458, 0.0375))
     code = arm.set_position_aa(endcoor,is_radian=False, speed=100,  mvacc=100, wait=True)
     code=arm.set_servo_angle(angle=[180,75,-180,20,0,90,-60],speed=60,is_radian=False,wait=True)
-    return
-def validate(self,coor):
-    x=coor[0]
-    y=coor[1]
-    code,val=self._arm.get_position_aa(is_radian=False)
-    x_curr=val[0]
-    y_curr=val[1]
-    quad=0
-    quadcurr=0
-    if x>=0 and y>=0:
-        quad=1
-    elif x<=0 and y>=0:
-        quad=2
-    elif x<=0 and y<=0:
-        quad=3
-    else:
-        quad=4
-
-    if x_curr>=0 and y_curr>=0:
-        quad_curr=1
-    elif x_curr<=0 and y_curr>=0:
-        quad_curr=2
-    elif x_curr<=0 and y_curr<=0:
-        quad_curr=3
-    else:
-        quad_curr=4
-
-    code,angle=self._arm.get_servo_angle(servo_id=1,is_radian=False)
-    print("angle",angle)
-    new_angle=angle+(quad-quadcurr)*90
-    new_angle=new_angle%360
-    print("new_angle",new_angle)
-    code=self._arm.set_servo_angle(servo_id=1,wait=True,angle=new_angle,is_radian=False)
-
-    code = self._arm.set_position_aa(coor,is_radian=False, speed=self._tcp_speed, mvacc=self._tcp_acc, radius=0.0, wait=True)
-    if not self._check_code(code, 'set_position'):
-        return
     return
 def average_pose(rvec1, tvec1, rvec2, tvec2):
         # Average the translation vectors
@@ -449,7 +349,6 @@ def calculate_rotation_angle(corner):
     # Ensure the angle is in the range 0 to 360 degrees
 
     return angle_deg
-
 def fine_adjust(arm,pipeline,target_id):
     leave=False
     depth_image=None
@@ -461,7 +360,7 @@ def fine_adjust(arm,pipeline,target_id):
         color_frame = frames.get_color_frame()
         color_image = np.asanyarray(color_frame.get_data())
         corners, id = detect_aruco(color_image, target_id)
-        print(corners)
+        print(corners, "corners")
         if id is not None:
             # Calculate the center of the marker
             center_x = int((corners[0][0] + corners[1][0] + corners[2][0] + corners[3][0]) / 4)
@@ -490,7 +389,6 @@ def fine_adjust(arm,pipeline,target_id):
 
     print("depth",depth_value)
     return depth_value
-
 def rgb_to_intensity_and_peak(frame):
     # Read the image
     
@@ -588,9 +486,9 @@ def pickup_element_with_tag(cams,tag_id):
             mem[0]=-mem[0]*1000
             mem[1]=mem[1]*1000
             mem[2]=(1.2-mem[2])*1000
-            mem[1]=pickup_claw(arm,mem,pipeline,target_id)
+            pos=pickup_claw(arm,mem,pipeline,target_id)
             
-            return mem
+            return pos
         
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -643,7 +541,7 @@ def offset_coor(boxes,coor):
     '''
     offset a coordinate by how many elements between
     '''
-    return [coor[0]]+[coor[1]-boxes*75]+coor[2:]
+    return [coor[0]]+[coor[1]-boxes*105]+coor[2:]
 def gohome():
     code,place=arm.get_position_aa(is_radian=False)
     code = arm.set_position_aa(place[:2]+[400]+place[3:], speed=80,mvacc=100, wait=True)
@@ -695,16 +593,13 @@ def readings(cams,step_size,steps):
         code = arm.set_position_aa([place[0]]+[place[1]-step*step_size]+place[2:], speed=50,mvacc=100, wait=True)
     coordinates_array = np.array(centers)
     return coordinates_array
-
-if __name__ == '__main__':
-    print(cv2.__version__)
-    # Load calibration dataS
+def full_pipeline(camera_tag,lens_tag):
     start()
     cap1,cap2,cap3,pipeline=initialize_cams()
     cams=(cap1,cap2,cap3,pipeline)
 
     # pickup camera
-    init_pos=pickup_element_with_tag(cams,4)
+    cam_init_pos=pickup_element_with_tag(cams,camera_tag)
 
     # find laser 
     camera_coor=[343.797485, 386.645844, 264.287628, -129.934337, 124.828596, 0.956668]    
@@ -714,21 +609,24 @@ if __name__ == '__main__':
         raise Exception
     gohome()
     # drop camera back
-    drop_element_at_position(arm,init_pos)
-    print("here")
+    drop_element_at_position(arm,cam_init_pos)
     # pickup lens and put in front of camera
-    # pickup_element_with_tag(cams,2)
-    # drop_element_at_position(lens_pos)
+    pickup_element_with_tag(cams,lens_tag)
+    drop_element_at_position(arm,lens_pos)
 
     # move camera to new position and center to beam
     new_cam_pos=offset_coor(1,lens_pos)
-    pickup_element_with_tag(cams,4)
+    pickup_element_with_tag(cams,camera_tag)
     new_cam_pos=center_robot_to_laser(cams,new_cam_pos)
     
     reading=readings(cams,6,14)
     cv2.destroyAllWindows()
 
+    drop_element_at_position(arm,cam_init_pos)
+    gohome()
     pipeline.stop()
-
-
-    
+    return
+if __name__ == '__main__':
+    camera_tag=4
+    lens_tag=2
+    full_pipeline(camera_tag,lens_tag)
