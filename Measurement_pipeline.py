@@ -436,8 +436,8 @@ def initialize_cams():
     cap2.set(cv2.CAP_PROP_FRAME_WIDTH, 3840)
     cap2.set(cv2.CAP_PROP_FRAME_HEIGHT, 2160)
     cap3 = cv2.VideoCapture(2, cv2.CAP_MSMF)
-    cap3.set(cv2.CAP_PROP_FRAME_WIDTH, 3840)
-    cap3.set(cv2.CAP_PROP_FRAME_HEIGHT, 2160)
+    cap3.set(cv2.CAP_PROP_FRAME_WIDTH, 8000)
+    cap3.set(cv2.CAP_PROP_FRAME_HEIGHT, 6000)
     return (cap1,cap2,cap3,pipeline)
 def pickup_element_with_tag(cams,tag_id):
     aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)

@@ -5,8 +5,8 @@ import time
 board = pyfirmata.Arduino('COM4')  # Adjust this to your Arduino's port
 
 # Configure pins
-pul_pin1 = 4  # Connect to PUL+ on DM542T 4/9
-dirp_pin1 =3  # Connect to DIR+ on DM542T 3/7
+pul_pin1 = 4 # Connect to PUL+ on DM542T 4/9
+dirp_pin1 = 3  # Connect to DIR+ on DM542T 3/7
 dirm_pin1 = 2  # Connect to DIR- on DM542T 2/5
 
 # Configure pins
@@ -60,12 +60,12 @@ try:
 
     # Test rotation in one direction
     print("Rotating in one direction (1/4 turn)...")
-    rotate_motor(.5, True, 3600000)
+    rotate_motor(2, True, 3600000)
     time.sleep(1)
 
     # Test rotation in the opposite direction
     print("Rotating in the opposite direction (1/4 turn)...")
-    rotate_motor(.5, False, 3600000)
+    rotate_motor(2, False, 3600000)
 
 except KeyboardInterrupt:
     if ena_pin1 is not None:
