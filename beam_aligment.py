@@ -484,19 +484,19 @@ def center_arm(arm,frame):
     center_x=laser_center[0]
     height, width, channels = frame.shape  
 
-    movex=(width//2-center_x)
-    movez=(height//2-center_z)
+    movex=(width//2-center_x)/10
+    movez=(height//2-center_z)/10
     print("center found",center_x,center_z,480,640,"and",movex,movez)
     if laser_center is not None:
         cv2.circle(frame, laser_center, 10, (0, 255, 0), -1)
         cv2.waitKey(100)
         height, width, channels = frame.shape  
-        movex=(width//2-center_x)
-        movez=(height//2-center_z)
-        if abs(movez)<=5 and abs(movex)<=5:
+        movex=(width//2-center_x)/20
+        movez=(height//2-center_z)/20
+        if abs(movez)<=1 and abs(movex)<=1:
             return 1
         code,place=arm.get_position_aa(is_radian=False)
-        target_move=[place[0]+movex/100]+[place[1]]+[place[2]]+place[3:]
+        target_move=[place[0]+movex/90]+[place[1]]+[place[2]-movez/90]+place[3:]
         if target_move[0]>400 or target_move[2]>320 or target_move[0]<200 or target_move[2]<190:
             return -1
         code = arm.set_position_aa(target_move, speed=50,mvacc=100, wait=True)

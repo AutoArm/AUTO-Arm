@@ -34,6 +34,10 @@ import time
 import math
 import cv2
 import pyrealsense2 as rs
+from matplotlib import pyplot as plt
+import ctypes
+
+
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../..'))
 
 from PIL import Image
@@ -47,7 +51,10 @@ else:
         parser.read('../robot.conf')
         ip = parser.get('xArm', 'ip')
     except:
-        ip = input('Please input the xArm ip address:')
+        # ip = input('Please input the xArm ip address:')
+
+        # hard coded ip; might change
+        ip = "192.168.1.241"
         if not ip:
             print('input error, exit')
             sys.exit(1)
@@ -494,47 +501,143 @@ def center_arm(arm,frame):
         return
     
 
-def save_frame_as_numpy(save_folder, frame, frame_count, letter):
+def monitor_off():
+    # Send the system to turn off the monitor
+    ctypes.windll.user32.SendMessageW(0xFFFF, 0x0112, 0xF170, 2)
+
+def monitor_on():
+    # Simulate a keypress to turn the monitor back on
+    ctypes.windll.user32.mouse_event(0x0001, 0, 0, 0, 0)
+
+    
+
+def save_frame_as_numpy(save_folder, frame, frame_count):
 
         # Create the filename with frame number
-        filename = os.path.join(save_folder, f'frame_hi_res_{frame_count:04d}{letter}.npy')  # Saves as frame_0000.npy, frame_0001.npy, ...
+        filename = os.path.join(save_folder, f'image_{frame_count:04d}.npy')  # Saves as frame_0000.npy, frame_0001.npy, ...
 
         # Save the current frame as a NumPy array to a file
         np.save(filename, frame)
 
 
+def capture_averaged_image(cap, n_avg):
+    # ret, frame = cap.read()
+    # frames = np.zeros(frame.shape)
+    #frames = frames.astype(np.float32)
+    # for _ in range(n_avg):
+    #     ret, frame = cap.read()
+    #     if not ret:
+    #         return None
+    #     frames.append(frame)
+    for indx in range(n_avg):
+        ret, frame = cap.read()
+        if not ret:
+            return None
+        if indx==0:
+            frames=frame.astype(np.float16)
+        else:
+            frames = frames + frame.astype(np.float16)
+    
+
+    avg_frame = frames/n_avg
+    return avg_frame
+
+# def capture_averaged_image(cap, n_avg):
+#     frames = []
+#     for _ in range(n_avg):
+#         ret, frame = cap.read()
+#         if not ret:
+#             return None
+#         frames.append(frame)
+    
+#     # Convert to float32 for averaging
+#     frames = [frame.astype(np.float32) for frame in frames]
+    
+#     # Compute the average
+#     avg_frame = np.mean(frames, axis=0).astype(np.uint8)
+    
+#     return avg_frame
+
+
+def augment_video(path, save_folder, start_time, end_time, steps):
+    cap = cv2.VideoCapture(path)
+
+    interval_size = (end_time - start_time) / steps 
+
+    frame_count = 0
+    for i in range(steps):
+        time_point = (interval_size)*i + start_time
+        time_point *= 1000
+        cap.set(cv2.CAP_PROP_POS_MSEC, time_point)
+
+        ret, frame = cap.read()
+
+        if ret: 
+            save_frame_as_numpy(save_folder, frame, frame_count)
+        else:
+            print(f"failed to capture frame at {time_point//1000} seconds")
+
+        frame_count += 1 
+
 
 if __name__ == '__main__':
-    print(cv2.__version__)
-    # Load calibration data
-    
-    camera_coor=   [345.649323, 236.93576000000002, 260.717987, -179.28938, -4.05064, 87.308684]
-    x, y, z, roll, pitch, yaw = camera_coor[0], camera_coor[1], camera_coor[2], camera_coor[3], camera_coor[4], camera_coor[5]
 
-    y -= 15
-    code = arm.set_position(x=x, y = y, z = z, roll=roll, pitch=pitch, yaw=yaw, is_radian = False)
-    time.sleep(5)
+    save_folder = "hene_laser_cylinder_x"
 
+    # npy_file = np.load(f"{save_folder}/hene_frame_0392.npy")
+    # plt.imshow(npy_file.astype(np.uint8), interpolation='nearest')
+    # plt.show()
+    # cv2.waitKey(2000)
+    # #print(np.shape(np.mean(npy_file,axis=2)))
 
-
-
-
-
-    cap2 = cv2.VideoCapture(4)
-
-    save_folder = 'saved_frames_high_res_camera_lens'
     if not os.path.exists(save_folder):
         os.makedirs(save_folder)
+
+
+
+    print(cv2.__version__)
+    # Load calibration data
+    position = arm.get_position()
+    print(position)
+
+    
+
+    # for spherical lens camera_coor=  [452.804047, 346.466125, 248.699631, -179.127004, 2.657493, -91.79586] 
+    # "nene_laser"                      y -= 0.5    x +=0         z += .022
+    # for cylindrica lens vertical camera_coor=  [452.803528, 339.844727, 253.982056, -179.127119, 2.657607, -91.795975]         
+    #      "hene_laser_cylinder_x"      y -= 1*0.5  x -= 1*0.006  z -= 1*.006
+    #      "hene_laser_cylinder_y"      y -= 1*0.5  x -= 1*0.007  z -= 1*0.00
+
+
+    camera_coor=  [452.803528, 339.844727, 253.982056, -179.127119, 2.657607, -91.795975]
+    x, y, z, roll, pitch, yaw = camera_coor[0], camera_coor[1], camera_coor[2], camera_coor[3], camera_coor[4], camera_coor[5]
+
+    code = arm.set_position(x=x, y = y, z = z, roll=roll, pitch=pitch, yaw=yaw, is_radian = False)
+
+    time.sleep(180)
+    
+
+   
+
+    
+
+
+    cap2 = cv2.VideoCapture(2)
+
+    cap2.set(cv2.CAP_PROP_FRAME_WIDTH, 8000)  
+    cap2.set(cv2.CAP_PROP_FRAME_HEIGHT, 6000) 
+
+    actual_width = int(cap2.get(cv2.CAP_PROP_FRAME_WIDTH))
+    actual_height = int(cap2.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    print(f"Camera resolution: {actual_width}x{actual_height}")
+
 
     
 
     # ret, frame = cap2.read()
     # save_frame_as_numpy(save_folder, frame, 0, 'a')
 
-    # npy_file = np.load("saved_frames_high_res_camera/frame_hi_res_0000a.npy")
-    # cv2.imshow("image", npy_file) 
-    # cv2.waitKey(0) 
-    # cv2.destroyAllWindows()
+
 
 
 
@@ -551,69 +654,38 @@ if __name__ == '__main__':
     # cv2.waitKey(0) 
     # cv2.destroyAllWindows()
 
-    
-    
-
-    
-    centered=False
-    centers=[]
-
-
     # Initialize a counter for frame numbering
     frame_count = 1
-    
-    
-    alphabet = "abcdefghijklmnopqrstuvwxyz"
-    for step in range(330):
-        ret, frame = cap2.read()
-        for redundancy in range(26):
-            letter = alphabet[redundancy]
-            save_frame_as_numpy(save_folder, frame, frame_count, letter)
 
-        if not ret:
-            print("Error: Could not read frame.")
-            break
-        # centered=center_arm(arm,frame)
-        # if centered==-1:
-        #     break
-        # else:
-        #     centers.append(centered)
+    #steps = 1000
 
-        y += 0.5
-        # cv2.imshow('image', npy_file)
-        # cv2.waitKey(0)
-        # cv2.destroyAllWindows()
+    # y -= steps*0.5 
+    # x -= steps*0.007 
+    # z -= steps*0.00
+    
+    #y -= steps*0.5 
+    #x -= steps*0.006 
+    #z -= steps*.006
+
+    #code = arm.set_position(x=x, y = y, z = z, roll=roll, pitch=pitch, yaw=yaw, is_radian = False)
+    #raise SystemExit
+    
+    for step in range(1000):
+        frame = capture_averaged_image(cap2,50)
+        save_frame_as_numpy(save_folder, frame, frame_count)
+
+
+        #y -= 1*0.5 
+        #x -= 1*0.007 
+        #z -= 1*0.00
+
+        y -= 1*0.5 
+        x -= 1*0.006 
+        z -= 1*.006
 
         
         code = arm.set_position(x=x, y = y, z = z, roll=roll, pitch=pitch, yaw=yaw, is_radian = False)
         frame_count += 1
-        time.sleep(0.1)
-
-    # npy_file = np.load(f"{save_folder}/frame_hi_res_0001a.npy")
-    # cv2.imshow("image", npy_file)
-    # cv2.waitKey(0)
-    # cv2.destroyAllWindows()
-
-
-    # npy_file = np.load(f"{save_folder}/frame_hi_res_0299a.npy")
-    # cv2.imshow("image", npy_file) 
-    # cv2.waitKey(0) 
-    # cv2.destroyAllWindows()
-       
-
-    # print(centers)
-    # coordinates_array = np.array(centers)
-
+        time.sleep(1)
 
     
-
-    
-
-    # # Separate the x and y coordinates
-    # x_coords = coordinates_array[:, 0]
-    # y_coords = coordinates_array[:, 1]
-
-    # # Perform linear regression to find the slope (m) and intercept (b)
-    # slope, intercept = np.polyfit(x_coords, y_coords, 1)
-    # print(slope,intercept)
-    # cv2.destroyAllWindows()

@@ -5,15 +5,15 @@ import pyrealsense2 as rs
 # Test Camera 1 with MSMF
 print(cv2.__version__)
 
-cap2 = cv2.VideoCapture(2, cv2.CAP_MSMF)
-cap2.set(cv2.CAP_PROP_FRAME_WIDTH, 3840)
-cap2.set(cv2.CAP_PROP_FRAME_HEIGHT, 2160)
+cap3 = cv2.VideoCapture(4, cv2.CAP_MSMF)
+cap3.set(cv2.CAP_PROP_FRAME_WIDTH, 3840)
+cap3.set(cv2.CAP_PROP_FRAME_HEIGHT, 2160)
 # pipeline = rs.pipeline()
 # config = rs.config()
 
 # cap2 = cv2.VideoCapture(1)  # For Windows MSMF
 while True:
-    ret1, frame1 = cap2.read()
+    ret1, frame1 = cap3.read()
     # ret2, frame2 = cap2.read()
     cv2.imshow('Camera 1', frame1)
     # cv2.imshow('Camera 2', frame2)

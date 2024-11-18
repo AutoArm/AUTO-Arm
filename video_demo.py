@@ -52,10 +52,11 @@ from xarm.wrapper import XArmAPI
 #         if not ip:
 #             print('input error, exit')
 #             sys.exit(1)
-# def hangle_err_warn_changed(item):
-#     print('ErrorCode: {}, WarnCode: {}'.format(item['error_code'], item['warn_code']))
+ip="192.168.1.241"
+def hangle_err_warn_changed(item):
+    print('ErrorCode: {}, WarnCode: {}'.format(item['error_code'], item['warn_code']))
 
-arm = XArmAPI("192.168.1.241")
+arm = XArmAPI(ip)
 arm.motion_enable(enable=True)
 arm.set_mode(0)
 arm.set_state(state=0)
@@ -154,8 +155,8 @@ def start():
     except Exception as e:
         print('MainException: {}'.format(e))
 def move_to(arm,coor):
-    # arm.set_gripper_enable(True)
-    # code = arm.set_gripper_speed(2000)
+    arm.set_gripper_enable(True)
+    code = arm.set_gripper_speed(2000)
     print("Move to coordinate: ",coor)
     speeds=80
     x=coor[0]
@@ -226,8 +227,7 @@ def pickup_claw(arm,coor,pipeline,target_id,special=False):
     else:
         quad=4
 
-    highcoor=[coor[0]-70]+[coor[1]-35]+[400]+coor[3:]
-    print("here",highcoor)
+    highcoor=[coor[0]-75]+[coor[1]-35]+[400]+coor[3:]
     code = arm.set_servo_angle(servo_id=1,angle=new_angle,wait=True,is_radian=False,speed=speeds)
     code = arm.set_position_aa(highcoor, speed=speeds,mvacc=100, wait=True)
     height=fine_adjust(arm,pipeline,target_id)
@@ -235,21 +235,17 @@ def pickup_claw(arm,coor,pipeline,target_id,special=False):
     height=height-100
     height=400-height
     if special:
-        height+=29
-    else:
-        height+=4
-    
-    
+        height+=30
     code,place=arm.get_position_aa(is_radian=False)
     pickup_pos=place[:2]+[height]+place[3:]
     code = arm.set_position_aa(place[:2]+[height]+place[3:], speed=speeds,mvacc=100, wait=True)
     if special:
-        arm.set_gripper_position(460,wait=True) 
+        arm.set_gripper_position(430,wait=True) 
     else:
         arm.set_gripper_position(630,wait=True) 
 
     arm.set_tcp_load(weight=0.8, center_of_gravity=(0.06125, 0.0458, 0.0375))
-    code = arm.set_position_aa(place[:2]+[400]+place[3:], speed=speeds,mvacc=100, wait=True)
+    code = arm.set_position_aa(place[:2]+[500]+place[3:], speed=speeds,mvacc=100, wait=True)
     code = arm.set_servo_angle(angle=[180,75,-180,20,0,90,-60],is_radian=False,speed=speeds)
 
     return pickup_pos
@@ -287,7 +283,7 @@ def pickup_claw_stay(arm,coor,pipeline):
     code = arm.set_position_aa(place[:2]+[height]+place[3:], speed=speeds,mvacc=100, wait=True)
     code,place=arm.get_position_aa(is_radian=False)
     print(place)
-    arm.set_gripper_position(670,wait=True) 
+    arm.set_gripper_position(630,wait=True) 
 
     arm.set_tcp_load(weight=0.8, center_of_gravity=(0.06125, 0.0458, 0.0375))
     
@@ -341,24 +337,6 @@ def average_pose(rvec1, tvec1, rvec2, tvec2):
         rvec_avg, _ = cv2.Rodrigues(R_avg_orthogonal)
 
         return rvec_avg, tvec_avg
-def calculate_area(corner):
-    # Use the Shoelace formula
-    x_coords = [corner[i][0] for i in range(4)]
-    y_coords = [corner[i][1] for i in range(4)]
-    
-    # Calculate the area using the Shoelace formula
-    area = 0.5 * abs(
-        x_coords[0] * y_coords[1] +
-        x_coords[1] * y_coords[2] +
-        x_coords[2] * y_coords[3] +
-        x_coords[3] * y_coords[0] -
-        (y_coords[0] * x_coords[1] +
-         y_coords[1] * x_coords[2] +
-         y_coords[2] * x_coords[3] +
-         y_coords[3] * x_coords[0])
-    )
-    
-    return area
 def calculate_rotation_angle(corner):
     # Calculate the center of the marker
     center_x = (corner[0][0] + corner[1][0] + corner[2][0] + corner[3][0]) / 4
@@ -412,46 +390,12 @@ def fine_adjust(arm,pipeline,target_id):
     depth_value = depth_image[center_y, center_x]
     rotation_angle = calculate_rotation_angle(corners)
     rotation_angle+=90
-    code = arm.set_position_aa([place[0]+71]+[place[1]+37]+place[2:], speed=50,mvacc=100, wait=True)
+    code = arm.set_position_aa([place[0]+71]+[place[1]+34.5]+place[2:], speed=50,mvacc=100, wait=True)
     code,pos = arm.get_servo_angle(servo_id=7,is_radian=False)
     code = arm.set_servo_angle(servo_id=7,wait=True,angle=pos+rotation_angle,is_radian=False)
 
 
     print("depth",depth_value)
-    return depth_value
-def fine_adjust_wo_move(arm,pipeline,target_id):
-    leave=False
-    depth_image=None
-    corners=None
-    while not leave:
-        frames = pipeline.wait_for_frames()
-        depth_frame = frames.get_depth_frame()
-        depth_image = np.asanyarray(depth_frame.get_data())
-        color_frame = frames.get_color_frame()
-        color_image = np.asanyarray(color_frame.get_data())
-        corners, id = detect_aruco(color_image, target_id)
-        # print(corners, "corners")
-        if id is not None:
-            # Calculate the center of the marker
-            center_x = int((corners[0][0] + corners[1][0] + corners[2][0] + corners[3][0]) / 4)
-            center_y = int((corners[0][1] + corners[1][1] + corners[2][1] + corners[3][1]) / 4)
-            
-            # print(f"Tag ID: {target_id} - Center (x, y): ({center_x}, {center_y})")
-            movey=(320-center_x)/15
-            movex=(240-center_y)/15
-            if movex==0 and movey==0:
-                leave=True
-            code,place=arm.get_position_aa(is_radian=False)
-            code = arm.set_position_aa([place[0]+movex]+[place[1]+movey]+place[2:], speed=20,mvacc=50, wait=True)
-            
-            # color_image_with_markers = cv2.aruco.drawDetectedMarkers(color_image, corners, target_id)
-            # Draw center point
-            cv2.circle(color_image, (center_x, center_y), 5, (0, 255, 0), -1)
-            
-            cv2.imshow('Detected ArUco Markers', color_image)
-    depth_value = depth_image[center_y, center_x]
-    area=abs(calculate_area(corners))
-    return area
     return depth_value
 def rgb_to_intensity_and_peak(frame):
     # Read the image
@@ -464,31 +408,31 @@ def rgb_to_intensity_and_peak(frame):
 
     return intensity, max_loc
 def find_pos(arm,coor,pipeline,target_id):
-    # arm.set_gripper_enable(True)
-    # code = arm.set_gripper_speed(2000)
-    # arm.set_gripper_position(850,wait=True)
-    # print("Claw pickup at coordinate: ",coor)
-    # speeds=80
-    # x=coor[0]
-    # y=coor[1]
+    arm.set_gripper_enable(True)
+    code = arm.set_gripper_speed(2000)
+    arm.set_gripper_position(850,wait=True)
+    print("Claw pickup at coordinate: ",coor)
+    speeds=80
+    x=coor[0]
+    y=coor[1]
 
-    # new_angle=math.atan2(y,x)/math.pi*180
-    # new_angle+=180
-    # quad=0
-    # if x>=0 and y>=0:
-    #     quad=1
-    # elif x<0 and y>=0:
-    #     quad=2
-    #     new_angle=280
-    # elif x<0 and y<0:
-    #     quad=3
-    # else:
-    #     quad=4
+    new_angle=math.atan2(y,x)/math.pi*180
+    new_angle+=180
+    quad=0
+    if x>=0 and y>=0:
+        quad=1
+    elif x<0 and y>=0:
+        quad=2
+        new_angle=280
+    elif x<0 and y<0:
+        quad=3
+    else:
+        quad=4
 
-    # highcoor=[coor[0]-70]+[coor[1]-35]+[400]+coor[3:]
-    # code = arm.set_servo_angle(servo_id=1,angle=new_angle,wait=True,is_radian=False,speed=speeds)
-    # code = arm.set_position_aa(highcoor, speed=speeds,mvacc=100, wait=True)
-    height=fine_adjust_wo_move(arm,pipeline,target_id)
+    highcoor=[coor[0]-75]+[coor[1]-35]+[400]+coor[3:]
+    code = arm.set_servo_angle(servo_id=1,angle=new_angle,wait=True,is_radian=False,speed=speeds)
+    code = arm.set_position_aa(highcoor, speed=speeds,mvacc=100, wait=True)
+    height=fine_adjust(arm,pipeline,target_id)
     print("after fine adjust")
     height=height-100
     height=400-height
@@ -500,39 +444,12 @@ def find_pos(arm,coor,pipeline,target_id):
 
     # code = arm.set_position_aa(place[:2]+[400]+place[3:], speed=speeds,mvacc=100, wait=True)
     # code = arm.set_servo_angle(angle=[180,75,-180,20,0,90,-60],is_radian=False,speed=speeds)
-    # gohome()
-    return height
+
+    return pickup_pos
 def rotate_claw(arm,rotation_angle):
     code,pos = arm.get_servo_angle(servo_id=7,is_radian=False)
     code = arm.set_servo_angle(servo_id=7,wait=True,angle=pos+rotation_angle,is_radian=False)
 # Methods to be used
-def rotate_motor_async(board):
-    ccw_pin1 = 8  
-    cw_pin1 = 9  
-    stop_pin1 = 7  
-
-    ccw_pin2 = 5  
-    cw_pin2 = 6
-    stop_pin2 = 4  
-    # Set up the pins
-    board.digital[ccw_pin1].mode = pyfirmata.OUTPUT
-    board.digital[cw_pin1].mode = pyfirmata.OUTPUT
-    board.digital[stop_pin1].mode = pyfirmata.OUTPUT
-    board.digital[ccw_pin2].mode = pyfirmata.OUTPUT
-    board.digital[cw_pin2].mode = pyfirmata.OUTPUT
-    board.digital[stop_pin2].mode = pyfirmata.OUTPUT
-
-
-        
-    board.digital[cw_pin1].write(1)  # Enable the driver (active LOW)
-    time.sleep(0.1)
-    board.digital[cw_pin1].write(0)  # Enable the driver (active LOW)
-    print("cw 1 enabled")
-
-    board.digital[cw_pin2].write(1)  # Enable the driver (active LOW)
-    time.sleep(0.1)
-    board.digital[cw_pin2].write(0)  # Enable the driver (active LOW)
-    print("cw 2 enabled")
 def rotate_motor(revolutions, direction, board,option=0,speed_rpm=60):
     pul_pin1,dirp_pin1,dirm_pin1,ena_pin1=4,3,2,None
     pul_pin2,dirp_pin2,dirm_pin2,ena_pin2=9,7,5,None
@@ -635,14 +552,15 @@ def initialize_cams():
     cap2 = cv2.VideoCapture(4, cv2.CAP_MSMF)
     cap2.set(cv2.CAP_PROP_FRAME_WIDTH, 3840)
     cap2.set(cv2.CAP_PROP_FRAME_HEIGHT, 2160)
-    cap3 = cv2.VideoCapture(2, cv2.CAP_MSMF)
-    cap3.set(cv2.CAP_PROP_FRAME_WIDTH, 8000)
-    cap3.set(cv2.CAP_PROP_FRAME_HEIGHT, 6000)
-    return (cap1,cap2,cap3,pipeline)
+    print("completed cams")
+    # cap3 = cv2.VideoCapture(2, cv2.CAP_MSMF)
+    # cap3.set(cv2.CAP_PROP_FRAME_WIDTH, 8000)
+    # cap3.set(cv2.CAP_PROP_FRAME_HEIGHT, 6000)
+    return (cap1,cap2,pipeline)
 def pickup_element_with_tag(cams,tag_id,size=0.062,special=False):
     aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
     parameters = cv2.aruco.DetectorParameters()
-    cap1,cap2,cap3,pipeline=cams
+    cap1,cap2,pipeline=cams
     calibration_data = np.load('stereo_calibration2.npz')
     mtx1 = calibration_data['mtx1']
     dist1 = calibration_data['dist1']
@@ -693,7 +611,6 @@ def pickup_element_with_tag(cams,tag_id,size=0.062,special=False):
                 pos=pickup_claw(arm,mem,pipeline,target_id,True)
             else:
                 pos=pickup_claw(arm,mem,pipeline,target_id)
-            
             return pos
         
 
@@ -702,7 +619,7 @@ def pickup_element_with_tag(cams,tag_id,size=0.062,special=False):
 def find_position_of_tag(cams,tag_id,size=0.062):
     aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
     parameters = cv2.aruco.DetectorParameters()
-    cap1,cap2,cap3,pipeline=cams
+    cap1,cap2,pipeline=cams
     calibration_data = np.load('stereo_calibration2.npz')
     mtx1 = calibration_data['mtx1']
     dist1 = calibration_data['dist1']
@@ -747,35 +664,12 @@ def find_position_of_tag(cams,tag_id,size=0.062):
             mem.extend([-180,0,0])
             mem[0]=-mem[0]*1000
             mem[1]=mem[1]*1000
-            mem[2]=400
+            mem[2]=(1.2-mem[2])*1000
             pos=None
-            move_to(arm,mem)
-            depth=find_pos(arm,mem,pipeline,target_id)
-            count=1
-            area=1
-            while area<200000:
-                code,pos=arm.get_position_aa(is_radian=False)
-                code = arm.set_position_aa(pos[:2]+[pos[2]-20]+pos[3:], speed=20,mvacc=20, wait=True)
-                area=abs(find_pos(arm,mem,pipeline,target_id))
-                print("AREAAAAAAAAAAAAAAAAAAAA",area)
-                # count+=1
-            frames = pipeline.wait_for_frames()
-            depth_frame = frames.get_depth_frame()
-            depth_image = np.asanyarray(depth_frame.get_data())
-            color_frame = frames.get_color_frame()
-            color_image = np.asanyarray(color_frame.get_data())
-            corners, id = detect_aruco(color_image, target_id)
-            rotation_angle = calculate_rotation_angle(corners)
-            rotation_angle+=90
-            code = arm.set_position_aa(pos[:2]+[400]+pos[3:], speed=40,mvacc=40, wait=True)
-            code,place=arm.get_position_aa(is_radian=False)
-            code = arm.set_position_aa([place[0]+71]+[place[1]+37]+place[2:], speed=50,mvacc=100, wait=True)
-            code,pos = arm.get_servo_angle(servo_id=7,is_radian=False)
-            code = arm.set_servo_angle(servo_id=7,wait=True,angle=pos+rotation_angle,is_radian=False)
-            code,place=arm.get_position_aa(is_radian=False)
-            gohome()
-            return place
-
+            pos=find_pos(arm,mem,pipeline,target_id)
+            
+            return pos
+        
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
@@ -830,7 +724,7 @@ def offset_coor(boxes,coor):
     return [coor[0]]+[coor[1]-boxes*105]+coor[2:]
 def gohome():
     code,place=arm.get_position_aa(is_radian=False)
-    code = arm.set_position_aa(place[:2]+[400]+place[3:], speed=80,mvacc=100, wait=True)
+    code = arm.set_position_aa(place[:2]+[500]+place[3:], speed=80,mvacc=100, wait=True)
     code=arm.set_servo_angle(angle=[180,75,-180,20,0,90,-60],speed=60,is_radian=False,wait=True)
 def readings(cams,step_size,steps):
     cap1,cap2,cap3,pipeline=cams
@@ -881,8 +775,8 @@ def readings(cams,step_size,steps):
     return coordinates_array
 def full_pipeline(camera_tag,lens_tag):
     start()
-    cap1,cap2,cap3,pipeline=initialize_cams()
-    cams=(cap1,cap2,cap3,pipeline)
+    cap1,cap2,pipeline=initialize_cams()
+    cams=(cap1,cap2,pipeline)
 
     # pickup camera
     cam_init_pos=pickup_element_with_tag(cams,camera_tag)
@@ -912,151 +806,91 @@ def full_pipeline(camera_tag,lens_tag):
     gohome()
     pipeline.stop()
     return
-def FAT(cams,tag_id,size=0.062):
-    aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
-    parameters = cv2.aruco.DetectorParameters()
-    cap1,cap2,cap3,pipeline=cams
-    calibration_data = np.load('stereo_calibration2.npz')
-    mtx1 = calibration_data['mtx1']
-    dist1 = calibration_data['dist1']
-    mtx2 = calibration_data['mtx2']
-    dist2 = calibration_data['dist2']
-    target_id = tag_id
-    arm.set_gripper_enable(True)
-    code = arm.set_gripper_speed(2000)
-    arm.set_gripper_position(850,wait=True)
-    marker_length = size  # Length of the marker's side in meters
-    print("inloop")
-    while True: 
-        
-        ret1, frame1 = cap1.read()
-        ret2, frame2 = cap2.read()
-
-        if not ret1 or not ret2:
-            print("Error: Could not read frame from one or both cameras.")
-            break
-
-        corners1, id1 = detect_aruco(frame1, target_id)
-        corners2, id2 = detect_aruco(frame2, target_id)
-
-        if corners1 is not None and corners2 is not None:
-            rvec1, tvec1 = estimate_pose(corners1, mtx1, dist1, marker_length)
-            rvec2, tvec2 = estimate_pose(corners2, mtx2, dist2, marker_length)
-
-            print(f"Target ArUco tag detected!")
-            print(f"Camera 1 - Rotation Vector:\n{rvec1}\nTranslation Vector:\n{tvec1}")
-            print(f"Camera 2 - Rotation Vector:\n{rvec2}\nTranslation Vector:\n{tvec2}")
-
-            avg_rvec = average_rotation_vectors([rvec1, rvec2])
-            avg_tvec = np.mean([tvec1, tvec2], axis=0)
-
-            print(f"Averaged Rotation Vector:\n{avg_rvec}\nAveraged Translation Vector:\n{avg_tvec}")
-            avg_rvec_text = f"Avg Rvec: {avg_rvec[0][0]:.2f}, {avg_rvec[1][0]:.2f}, {avg_rvec[2][0]:.2f}"
-            avg_tvec_text = f"Avg Tvec: {avg_tvec[0][0]:.2f}, {avg_tvec[1][0]:.2f}, {avg_tvec[2][0]:.2f}"
-            
-            mem=avg_tvec.flatten()
-            rot=avg_rvec.flatten()
-            mem=mem.tolist()
-            mem.extend([-180,0,0])
-            mem[0]=-mem[0]*1000
-            mem[1]=mem[1]*1000
-            mem[2]=400
-            pos=None
-            move_to(arm,mem)
-            leave=False
-            depth_image=None
-            corners=None
-            while not leave:
-                frames = pipeline.wait_for_frames()
-                depth_frame = frames.get_depth_frame()
-                depth_image = np.asanyarray(depth_frame.get_data())
-                color_frame = frames.get_color_frame()
-                color_image = np.asanyarray(color_frame.get_data())
-                corners, id = detect_aruco(color_image, target_id)
-                print(corners, "corners")
-                if id is not None:
-                    # Calculate the center of the marker
-                    center_x = int((corners[0][0] + corners[1][0] + corners[2][0] + corners[3][0]) / 4)
-                    center_y = int((corners[0][1] + corners[1][1] + corners[2][1] + corners[3][1]) / 4)
-                    
-                    print(f"Tag ID: {target_id} - Center (x, y): ({center_x}, {center_y})")
-                    movey=(320-center_x)/10
-                    movex=(240-center_y)/10
-                    if movex==0 and movey==0:
-                        leave=True
-                    code,place=arm.get_position_aa(is_radian=False)
-                    code = arm.set_position_aa([place[0]+movex]+[place[1]+movey]+place[2:], speed=50,mvacc=100, wait=True)
-                    
-                    # color_image_with_markers = cv2.aruco.drawDetectedMarkers(color_image, corners, target_id)
-                    # Draw center point
-                    cv2.circle(color_image, (center_x, center_y), 5, (0, 255, 0), -1)
-                    
-                    cv2.imshow('Detected ArUco Markers', color_image)
-            depth_value = depth_image[center_y, center_x]                
-            code = arm.set_position_aa([place[0]]+[place[1]]+place[2:], speed=50,mvacc=100, wait=True)
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
 if __name__ == '__main__':
     board = pyfirmata.Arduino('COM5')  # Adjust this to your Arduino's port
-    pul_pin1 = 4 # Connect to PUL+ on DM542T 4/9
-    dirp_pin1 = 3  # Connect to DIR+ on DM542T 3/7
-    dirm_pin1 = 2  # Connect to DIR- on DM542T 2/5
-    ena_pin1 = None # Connect to ENA+ on DM542T (optional, set to None if not used)
+    ccw_pin1 = 8  
+    cw_pin1 = 9  
+    stop_pin1 = 7  
 
-    
+    ccw_pin2 = 5  
+    cw_pin2 = 6
+    stop_pin2 = 4  
+    # Set up the pins
+    board.digital[ccw_pin1].mode = pyfirmata.OUTPUT
+    board.digital[cw_pin1].mode = pyfirmata.OUTPUT
+    board.digital[stop_pin1].mode = pyfirmata.OUTPUT
+    board.digital[ccw_pin2].mode = pyfirmata.OUTPUT
+    board.digital[cw_pin2].mode = pyfirmata.OUTPUT
+    board.digital[stop_pin2].mode = pyfirmata.OUTPUT
     camera_tag=2
     lens_tag=2
     start()
-    cap1,cap2,cap3,pipeline=initialize_cams()
-    cams=(cap1,cap2,cap3,pipeline)
-    tag_pos=find_position_of_tag(cams,11)
-    move_to(arm,tag_pos)
-    tag_pos_fat=[tag_pos[0]+1.3]+[tag_pos[1]-110]+[tag_pos[2]-50]+tag_pos[3:]
-    # pickup camera
-    for i in range(1):
-        fat_position=pickup_element_with_tag(cams,1,0.038,True)
-        
-        # FAT(cams,11)
-        move_to(arm,tag_pos_fat)
-        code,place=arm.get_position_aa(is_radian=False)
+    cap1,cap2,pipeline=initialize_cams()
+    cams=(cap1,cap2,pipeline)
 
-        # code = arm.set_position_aa([place[0]-2]+[place[1]]+[place[2]-130]+place[3:], speed=50,mvacc=100, wait=True)
+    # tag_pos1=find_position_of_tag(cams,8)
+    # gohome()
+    # tag_pos2=find_position_of_tag(cams,9)
+    # gohome()
+    # tag_pos3=find_position_of_tag(cams,10)
+    # gohome()
+    # tag_pos4=find_position_of_tag(cams,11)
+    # gohome()
+    # print([tag_pos1,tag_pos2,tag_pos3,tag_pos4])
+    
+    tag_pos1=[447.021271, 252.663284, int(np.uint16(301)), 179.994061, -1.459381, 0.011746]
+    tag_pos2=[561.857117, 242.824051, int(np.uint16(301)), -1.981173, 179.989019, 0.188675]
+    tag_pos3=[32.865112, 252.036972, int(np.uint16(291)), 179.942609, 4.543784, 0.003495]
+    tag_pos4=[446.086456, 133.305984, int(np.uint16(294)), 128.122358, 126.430299, 0.139458]
 
-        # # code,place=arm.get_position_aa(is_radian=False)
-        # # leave=False
-        # # depth_image=None
-        # # corners=None
-        # # while not leave:
-        # #     frames = pipeline.wait_for_frames()
-        # #     depth_frame = frames.get_depth_frame()
-        # #     depth_image = np.asanyarray(depth_frame.get_data())
-        # #     color_frame = frames.get_color_frame()
-        # #     color_image = np.asanyarray(color_frame.get_data())
-        rotate_motor_async(board)
-        code = arm.set_position_aa([place[0]-0.1]+[place[1]+14]+[place[2]+0.1]+place[3:], speed=2,mvacc=20, wait=True)
+    # pickup_element_with_tag(cams,9)
+    # drop_element_at_position(arm,tag_pos2)
 
-        print("Testing motor rotation...")
-        time.sleep(3)
-        rotate_motor_async(board)
-        # # Test rotation in one direction
-        # # print("Rotating in one direction (1/4 turn)...")
-        # # rotate_motor(2, True, board,0,3600000)
-        # # time.sleep(1)
+    # pickup_element_with_tag(cams,8)
+    # drop_element_at_position(arm,tag_pos1)
 
-        # # print("Rotating in one direction (1/4 turn)...")
-        # # rotate_motor(2, False, board,1,3600000)
-        # # time.sleep(1)
+    # pickup_element_with_tag(cams,10)
+    # drop_element_at_position(arm,tag_pos3)
 
-        # # print("Rotating in one direction (1/4 turn)...")
-        # # rotate_motor(2, False, board,2,3600000)
-        # # time.sleep(1)
-        
-        
-        # # print("Motor test completed")
-        
-        code,place=arm.get_position_aa(is_radian=False)
+    pickup_element_with_tag(cams,11)
+    drop_element_at_position(arm,tag_pos4)
 
-        code = arm.set_position_aa([place[0]]+[place[1]-30]+[place[2]]+place[3:], speed=10,mvacc=10, wait=True)
-        gohome()
-        drop_element_at_position(arm,fat_position)
+    # tag_pos=tag_pos4
+    # # pickup camera
+    # pickup_element_with_tag(cams,1,0.038,True)
+    # tag_pos=tag_pos[:1]+[tag_pos[1]-110]+[tag_pos[2]+150]+tag_pos[3:]
+    # move_to(arm,tag_pos)
+    # rotate_claw(arm,90)
+    # code,place=arm.get_position_aa(is_radian=False)
+
+    # code = arm.set_position_aa([place[0]-6]+[place[1]]+[place[2]-148]+place[3:], speed=50,mvacc=100, wait=True)
+
+    # code,place=arm.get_position_aa(is_radian=False)
+
+    # code = arm.set_position_aa([place[0]]+[place[1]+22]+[place[2]]+place[3:], speed=50,mvacc=100, wait=True)
+
+    # code = arm.set_position_aa([place[0]]+[place[1]+25]+[place[2]]+place[3:], speed=30,mvacc=100, wait=False)
+    # print("Testing motor rotation...")
+
+    # # Test rotation in one direction
+    # print("Rotating in one direction (1/4 turn)...")
+    # rotate_motor(2, True, board,0,3600000)
+    # time.sleep(1)
+
+    # print("Rotating in one direction (1/4 turn)...")
+    # rotate_motor(2, False, board,1,3600000)
+    # time.sleep(1)
+
+    # print("Rotating in one direction (1/4 turn)...")
+    # rotate_motor(2, False, board,2,3600000)
+    # time.sleep(1)
+    
+    
+    # print("Motor test completed")
+    
+    # code,place=arm.get_position_aa(is_radian=False)
+
+    # code = arm.set_position_aa([place[0]]+[place[1]-30]+[place[2]]+place[3:], speed=50,mvacc=100, wait=True)
+    # gohome()
+
     board.exit()
