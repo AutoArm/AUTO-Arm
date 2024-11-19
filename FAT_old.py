@@ -227,11 +227,11 @@ def pickup_claw(arm,coor,pipeline,target_id,special=False):
         quad=4
 
     highcoor=[coor[0]-70]+[coor[1]-35]+[400]+coor[3:]
-    print("here",highcoor)
+    # print("here",highcoor)
     code = arm.set_servo_angle(servo_id=1,angle=new_angle,wait=True,is_radian=False,speed=speeds)
     code = arm.set_position_aa(highcoor, speed=speeds,mvacc=100, wait=True)
     height,rotation=fine_adjust(arm,pipeline,target_id)
-    print("after fine adjust")
+    # print("after fine adjust")
     height=height-100
     height=400-height
     if special:
@@ -390,13 +390,13 @@ def fine_adjust(arm,pipeline,target_id):
         color_frame = frames.get_color_frame()
         color_image = np.asanyarray(color_frame.get_data())
         corners, id = detect_aruco(color_image, target_id)
-        print(corners, "corners")
+        # print(corners, "corners")
         if id is not None:
             # Calculate the center of the marker
             center_x = int((corners[0][0] + corners[1][0] + corners[2][0] + corners[3][0]) / 4)
             center_y = int((corners[0][1] + corners[1][1] + corners[2][1] + corners[3][1]) / 4)
             
-            print(f"Tag ID: {target_id} - Center (x, y): ({center_x}, {center_y})")
+            # print(f"Tag ID: {target_id} - Center (x, y): ({center_x}, {center_y})")
             movey=(320-center_x)/10
             movex=(240-center_y)/10
             if movex==0 and movey==0:
@@ -406,9 +406,9 @@ def fine_adjust(arm,pipeline,target_id):
             
             # color_image_with_markers = cv2.aruco.drawDetectedMarkers(color_image, corners, target_id)
             # Draw center point
-            cv2.circle(color_image, (center_x, center_y), 5, (0, 255, 0), -1)
+            # cv2.circle(color_image, (center_x, center_y), 5, (0, 255, 0), -1)
             
-            cv2.imshow('Detected ArUco Markers', color_image)
+            # cv2.imshow('Detected ArUco Markers', color_image)
     depth_value = depth_image[center_y, center_x]
     rotation_angle = calculate_rotation_angle(corners)
     rotation_angle+=90
@@ -812,7 +812,7 @@ def offset_coor(boxes,coor):
     return [coor[0]]+[coor[1]-boxes*105]+coor[2:]
 def gohome():
     code,place=arm.get_position_aa(is_radian=False)
-    code = arm.set_position_aa(place[:2]+[400]+place[3:], speed=80,mvacc=100, wait=True)
+    code = arm.set_position_aa(place[:2]+[500]+place[3:], speed=80,mvacc=100, wait=True)
     code=arm.set_servo_angle(angle=[180,75,-180,20,0,90,-60],speed=60,is_radian=False,wait=True)
 def readings(cams,step_size,steps):
     cap1,cap2,cap3,pipeline=cams
@@ -978,7 +978,32 @@ def FAT(cams,tag_id,size=0.062):
             code = arm.set_position_aa([place[0]]+[place[1]]+place[2:], speed=50,mvacc=100, wait=True)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
-def calculate_approach_vector(tag_pose, offset_distance):
+def rotate_coordinate_plane(angle_degrees):
+    """
+    Rotate the coordinate plane clockwise by the given angle.
+    
+    :param angle_degrees: Angle of rotation in degrees (clockwise)
+    :return: Rotated unit vectors [x_unit_vector, y_unit_vector]
+    """
+    # Convert angle to radians
+    angle_radians = np.deg2rad(angle_degrees)
+    
+    # Rotation matrix for clockwise rotation
+    rotation_matrix = np.array([
+        [np.cos(angle_radians), np.sin(angle_radians)],
+        [-np.sin(angle_radians), np.cos(angle_radians)]
+    ])
+    
+    # Original unit vectors
+    x_unit = np.array([1, 0])
+    y_unit = np.array([0, 1])
+    
+    # Rotate unit vectors
+    rotated_x = rotation_matrix @ x_unit
+    rotated_y = rotation_matrix @ y_unit
+    
+    return [rotated_x, rotated_y]
+def calculate_approach_vector(coor,rotation):
     """
     Calculate a unit vector to approach the tag based on its orientation.
     
@@ -990,27 +1015,19 @@ def calculate_approach_vector(tag_pose, offset_distance):
     - start_pose: The starting position before the approach.
     - approach_vector: Unit vector pointing towards the tag.
     """
-    x, y, z, roll, pitch, yaw = tag_pose
+    add_z=0
+    Delx=0
+    if rotation>100 and rotation<270:
+        add_z=4
+        Delx=-1
+    x_uv,y_uv=rotate_coordinate_plane(rotation)
+    x,y=x_uv*(Delx)+y_uv*(-110)
+    tag_pos_fat=[coor[0]+x]+[coor[1]+y]+[coor[2]-81.4+add_z]+coor[3:]
+    print(rotation)
+    dir_move= np.concatenate([y_uv, np.zeros(4)])
+    return tag_pos_fat,dir_move
 
-    # Convert yaw to radians if needed
-    yaw_rad = np.radians(yaw)
-
-    # Calculate approach vector (perpendicular to the tag)
-    dx = np.cos(yaw_rad)
-    dy = np.sin(yaw_rad)
-
-    # Unit vector for the approach
-    approach_vector = np.array([dx, dy, 0])  # No change in z during approach
-
-    # Start position offset by `offset_distance` along the vector
-    start_x = x - offset_distance * dx
-    start_y = y - offset_distance * dy
-
-    start_pose = [start_x, start_y, z, roll, pitch, yaw]
-    return start_pose, approach_vector
-
-
-def move_along_vector(arm, start_pose, vector, steps, step_distance):
+def move_along_vector(arm, start_pose, direction, distance=18):
     """
     Move the robot arm along a vector in steps.
 
@@ -1021,26 +1038,16 @@ def move_along_vector(arm, start_pose, vector, steps, step_distance):
     - steps: Number of steps to approach the tag.
     - step_distance: Distance moved in each step (mm).
     """
-    current_pose = np.array(start_pose[:3])
-    orientation = start_pose[3:]
-
     # Normalize the vector for stepwise movement
-    vector = np.array(vector) / np.linalg.norm(vector)
-
-    for step in range(steps):
-        # Calculate the next position
-        next_pose = current_pose + vector * step_distance
-
-        # Command the robot to move
-        arm.set_position_aa(
-            list(next_pose) + orientation,
-            speed=50,
-            mvacc=100,
+    print(distance*direction)
+    next_pose=start_pose+distance*direction
+    arm.set_position_aa(
+            next_pose,
+            speed=10,
+            mvacc=20,
             wait=True
         )
-
-        # Update the current pose
-        current_pose = next_pose
+    
 
 if __name__ == '__main__':
     board = pyfirmata.Arduino('COM5')  # Adjust this to your Arduino's port
@@ -1057,14 +1064,19 @@ if __name__ == '__main__':
     # pickup_element_with_tag(cams,11)
 
     tag_pos,rotation=find_position_of_tag(cams,11)
+    tag_pos_fat,dir_move=calculate_approach_vector(tag_pos,(rotation+90)%360)
+    print(dir_move)
     print("rotation",(rotation+90)%360)
-    tag_pos,rotation=find_position_of_tag(cams,11)
-    print("rotation",(rotation+90)%360)
-    tag_pos,rotation=find_position_of_tag(cams,11)
-    print("rotation",(rotation+90)%360)
+    # tag_pos,rotation=find_position_of_tag(cams,11)
+    # print("rotation",(rotation+90)%360)
+    # tag_pos,rotation=find_position_of_tag(cams,11)
+    # print("rotation",(rotation+90)%360)
     # move_to(arm,tag_pos)
-    tag_pos_fat=[tag_pos[0]-1.4]+[tag_pos[1]-110]+[tag_pos[2]-81.5]+tag_pos[3:]
+    # tag_pos_fat=[tag_pos[0]-1.4]+[tag_pos[1]-110]+[tag_pos[2]-81.5]+tag_pos[3:]
     # pickup camera
+    
+    print(rotate_coordinate_plane((rotation+90)%360))
+    
     for i in range(1):
         fat_position,rotation=pickup_element_with_tag(cams,1,0.038,True)
         
@@ -1085,8 +1097,8 @@ if __name__ == '__main__':
         # #     color_frame = frames.get_color_frame()
         # #     color_image = np.asanyarray(color_frame.get_data())
         rotate_motor_async(board)
-        code = arm.set_position_aa([place[0]]+[place[1]+13.8]+[place[2]]+place[3:], speed=2,mvacc=20, wait=True)
-
+        # code = arm.set_position_aa([place[0]]+[place[1]+13.8]+[place[2]]+place[3:], speed=2,mvacc=20, wait=True)
+        move_along_vector(arm,place,dir_move)
         print("Testing motor rotation...")
         time.sleep(3)
         rotate_motor_async(board)
@@ -1108,7 +1120,9 @@ if __name__ == '__main__':
         
         code,place=arm.get_position_aa(is_radian=False)
 
-        code = arm.set_position_aa([place[0]]+[place[1]-30]+[place[2]]+place[3:], speed=10,mvacc=10, wait=True)
+        move_along_vector(arm,place,-dir_move)
+        code,pos=arm.get_position_aa(is_radian=False)
+        code = arm.set_position_aa(pos[:2]+[450]+pos[3:], speed=40,mvacc=40, wait=True)
         gohome()
         drop_element_at_position(arm,fat_position)
     board.exit()
