@@ -37,6 +37,7 @@ import pyrealsense2 as rs
 from matplotlib import pyplot as plt
 import ctypes
 from scipy.io import savemat
+from scipy.spatial.transform import Rotation as R
 
 
 
@@ -67,210 +68,301 @@ arm.set_mode(0)
 arm.set_state(state=0)
 print("init done")
 
-def y_rot(vec, angle):
+
+def vector_to_rpy(vector):
     """
-    given a vector and an angle (deg), rotates
-    the vector about the y-axis 
+    Convert a direction vector to roll, pitch, yaw angles.
+    
+    Args:
+        vector (np.array): 3D vector [vx, vy, vz] that we want to point to
+        
+    Returns:
+        tuple: (roll, pitch, yaw) in degrees
     """
-    angle = np.radians(angle)
 
-    v1 = vec[0]*np.cos(angle) + vec[2]*np.sin(angle)
-    v2 = vec[1]
-    v3 = vec[2]*np.cos(angle) - vec[0]*np.sin(angle)
+    # Normalize the vector
+    vector = np.array(vector, dtype=float)
+    vector = vector / np.linalg.norm(vector)
+    vx, vy, vz = vector
+    
+    # pitch (rot abt y-axis)
+    pitch = np.degrees(np.arctan2(-vz, np.sqrt(vx*vx + vy*vy)))
+    
+    # yaw (rotation abt z-axis)
+    yaw = np.degrees(np.arctan2(vy, vx))
+    
+    # calc roll
+    if np.isclose(vz, 1.0):  # pointing straight up
+        roll = 0
+    elif np.isclose(vz, -1.0):  # pointing straight down
+        roll = 180
+    else:
+        roll = 180 if vy < 0 else 0
+    
+    return roll, pitch, yaw
 
-    return [v1, v2, v3]
 
-def sub(v1, v2):
+
+
+def normalize(v):
+    """Normalize a vector"""
+    norm = np.linalg.norm(v)
+    if norm == 0:
+        return v
+    return v / norm
+
+def get_end_effector_direction(roll_deg, pitch_deg, yaw_deg):
     """
-    given two vectors, returns v1 - v2 
+    Calculate the direction vector of the end effector from roll, pitch, and yaw angles in degrees.
+    For a robot arm, this represents the direction the hand/gripper is pointing.
+    When the arm points straight down, this should be [0, 0, -1].
     """
-    new_vec = []
+    # Convert degrees to radians
+    roll = np.deg2rad(roll_deg)
+    pitch = np.deg2rad(pitch_deg)
+    yaw = np.deg2rad(yaw_deg)
+    
+    # Create rotation matrices
+    Rx = np.array([
+        [1, 0, 0],
+        [0, np.cos(roll), -np.sin(roll)],
+        [0, np.sin(roll), np.cos(roll)]
+    ])
+    
+    Ry = np.array([
+        [np.cos(pitch), 0, np.sin(pitch)],
+        [0, 1, 0],
+        [-np.sin(pitch), 0, np.cos(pitch)]
+    ])
+    
+    Rz = np.array([
+        [np.cos(yaw), -np.sin(yaw), 0],
+        [np.sin(yaw), np.cos(yaw), 0],
+        [0, 0, 1]
+    ])
+    
+    # Combine rotations
+    R = Rz @ Ry @ Rx  # Try ZYX order
+    
+    # The end effector direction is typically aligned with one of the principal axes
+    direction = -R[:, 2]  # Using negative Z column as default
+    direction = normalize(direction)
 
-    for i in range(len(v1)):
-        new_vec.append(v1[i] - v2[i])
+    
+    
+    return -1*direction
 
-    return new_vec
 
-
-def axis_rot(phi, orig_vec, pos):
+def rotate_vector(vector, axis, angle_degrees):
     """
-    given angles theta and phi, this wil rotate the 
-    robot about the axis for which its claw is in
+    Rotate a vector around an arbitrary axis by a given angle using Rodrigues' rotation formula.
+    
+    Parameters:
+    vector (array-like): The vector to be rotated (3D)
+    axis (array-like): The axis of rotation (3D)
+    angle_degrees (float): The rotation angle in degrees
+    
+    Returns:
+    numpy.ndarray: The rotated vector
     """
-    # recalibrate position
-    x, y, z, roll, pitch, yaw = pos
+    # Convert inputs to numpy arrays and normalize the rotation axis
+    v = np.array(vector, dtype=float)
+    k = np.array(axis, dtype=float)
+    k = k / np.linalg.norm(k)
+    v = v / np.linalg.norm(v)
+    
+    # Convert angle to radians
+    theta = np.radians(angle_degrees)
+    
+    # Rodrigues' rotation formula
+    # v_rot = v*cos(θ) + (k×v)*sin(θ) + k*(k·v)*(1-cos(θ))
+    cos_theta = np.cos(theta)
+    sin_theta = np.sin(theta)
+    
+    # Calculate the three terms of Rodrigues' formula
+    term1 = v * cos_theta
+    term2 = np.cross(k, v) * sin_theta
+    term3 = k * np.dot(k, v) * (1 - cos_theta)
+    
+    # Combine terms to get the rotated vector
+    v_rotated = term1 + term2 + term3
+    v_rotated = normalize(v_rotated)
+    
+    return v_rotated
 
 
 
 
-    radius = 162 # radius of rotation about roll
-    #orig_vec = [0, 0, -radius]
-    rot_vec = y_rot(orig_vec, phi)
+def face(plane):
+    """
+    given a vector (plane) that is normal to the plane 
+    of the optical component, this will move the robot arm to that position
+    """
 
-    print(orig_vec)
-    print(rot_vec)
+    # TODO: add functionality to keep center the same
+    plane = np.array(plane, dtype = float)
+    plane = normalize(plane)
 
-    offset = sub(orig_vec, rot_vec)
+    position = arm.get_position()
+    x, y, z, roll, pitch, yaw = position[1]
+    new_roll, new_pitch, new_yaw = vector_to_rpy(plane)
+
+    arm.set_position(x=x, y=y, z=z, roll=new_roll, pitch=new_pitch, yaw=new_yaw, is_radian=False)
+
+def face_shift(plane, radius = 166.5):
+    """
+    makes the plane of the robot face a direction that 
+    is normal to the plane 
+
+    radius is distance from x,y,z to end effector
+    """
+
+    plane = np.array(plane, dtype = float)
+    plane = normalize(plane)
+
+    position = arm.get_position()
+    x, y, z, roll, pitch, yaw = position[1]
+    end_eff = get_end_effector_direction(roll, pitch, yaw) * radius
+
+    # current x, y, and z of end effector
+    cx, cy, cz = end_eff[0] + x, end_eff[1] + y, end_eff[2] + z
+
+    # calculate new x, y, and z of end effector 
+    new_roll, new_pitch, new_yaw = vector_to_rpy(plane)
+    new_end_eff = get_end_effector_direction(new_roll, new_pitch, new_yaw) * radius
+
+    nx, ny, nz = new_end_eff[0] + x, new_end_eff[1] + y, new_end_eff[2] + z
+    dx, dy, dz = nx - cx, ny - cy, nz - cz
+
+    print(dx, dy, dz)
+
+    arm.set_position(x=x-dx, y=y-dy, z=z-dz, roll=new_roll, pitch=new_pitch, yaw=new_yaw, is_radian=False)
+
+def rotate(plane, theta):
+    """
+    assumes already facing the plane
+
+    given a vector normal to the robot's plane (plane)
+    this func will make the robot move to that point 
+    rotated abt theta
+
+    note: follows right hand rule with end effector pointing towards hand
+    """
+    plane = np.array(plane, dtype = float)
+    plane = normalize(plane)
+
+    roll, pitch, yaw = vector_to_rpy(plane)
+
+    end_effector = get_end_effector_direction(roll, pitch, yaw) # rotate 
+    end_effector = normalize(end_effector)
+
+    axis = np.cross(end_effector, plane)
 
 
-    x += offset[0]
-    z += offset[2]
-    roll -= phi
-    pos[0] += offset[0]
-    pos[2] += offset[2]
-    pos[3] -= phi
+    new_plane = rotate_vector(plane, axis, theta)
 
-    arm.set_position(x=x, y = y, z = z, roll=roll, pitch=pitch, yaw=yaw, is_radian = False)
-    return rot_vec
-def capture_averaged_image(cap, n_avg):
+    face_shift(new_plane)
 
-    for indx in range(n_avg):
-        ret, frame = cap.read()
-        if not ret:
-            return None
-        if indx==0:
-            frames=frame.astype(np.float32)
-        else:
-            frames = frames + frame.astype(np.float32)
+
+def vector_to_euler(vector):
+    """
+    Convert a 3D vector to roll, pitch, yaw angles in degrees.
+    Known cases:
+    [0,0,-1] -> roll=-180°, pitch=0°, yaw=-90°
+    [0.70711, 0, -0.70711] -> roll=-145°, pitch=0°, yaw=-90°
+    [-0.70711, 0, -0.70711] -> roll=145°, pitch=0°, yaw=-90°
+    [-0.0002, -0.7069, -0.7073] -> roll=180°, pitch=-45°, yaw=-90°
+    [-4.52e-05, 0.7071, -0.7071] -> roll=180°, pitch=45°, yaw=-90°
+    
+    Args:
+        vector: numpy array of shape (3,) representing direction vector
+        
+    Returns:
+        tuple: (roll, pitch, yaw) angles in degrees
+    """
+    # Normalize the vector
+    vector = vector / np.linalg.norm(vector)
+    x, y, z = vector
+    
+    if np.allclose([x, y, z], [0, 0, -1]):
+        return -180.0, 0.0, -90.0
+    
+    # Calculate yaw (always close to -90 for these cases)
+    yaw = -90.0
+    
+    # Calculate pitch - angle from XY plane
+    # For vectors with significant Y component
+    if abs(y) > 0.1:
+        pitch = np.degrees(np.arctan2(z, -y))
+    else:
+        pitch = 0.0
+    
+    # Calculate roll
+    if abs(y) > 0.1:
+        roll = 180.0
+    else:
+        roll = 180.0 - np.degrees(np.arccos(-z))
+        if x > 0:
+            roll = -roll
+    
+    return roll, pitch, yaw
+
+def rotate_phi(plane, phi, radius = 166.5):
+    """
+    given a vector that is normal to the plane
+    this rotates that vector about phi
+    """
+    plane = np.array(plane, dtype = float)
+    plane = normalize(plane)
+
+    position = arm.get_position()
+    x, y, z, roll, pitch, yaw = position[1]
+
+    roll, pitch, yaw = vector_to_rpy(plane)
+    end_effector = get_end_effector_direction(roll, pitch, yaw) 
+
+
+
+
+    new_end_effector = rotate_vector(end_effector, plane, phi)
+    new_roll, new_pitch, new_yaw = vector_to_euler(new_end_effector)
+
+    end_effector *= radius
+    new_end_effector *= radius
+
+    # current x, y, and z of end effector
+    cx, cy, cz = end_effector[0] + x, end_effector[1] + y, end_effector[2] + z
+
+    nx, ny, nz = new_end_effector[0] + x, new_end_effector[1] + y, new_end_effector[2] + z
+    dx, dy, dz = nx - cx, ny - cy, nz - cz
+
     
 
-    avg_frame = frames/n_avg
-    return avg_frame
+    
 
-def save_frame_as_numpy(save_folder, frame, frame_count):
-
-        # Create the filename with frame number
-        filename = os.path.join(save_folder, f'image_{frame_count:04d}.npy')  # Saves as frame_0000.npy, frame_0001.npy, ...
-
-        # Save the current frame as a NumPy array to a file
-        np.save(filename, frame)
-
-def save_frame_as_matfile(save_folder, frame, frame_count,current_angle):
-
-        # Create the filename with frame number
-        filename = os.path.join(save_folder, f'negphi2_image_{frame_count:04d}.mat')  # Saves as frame_0000.npy, frame_0001.npy, ...
-
-        # Save the current frame as a NumPy array to a file
-        savemat(filename, {'frame': frame[:,:,2],'current_angle':current_angle})
-
-def axis_rot(phi, orig_vec, pos):
-    """
-    given angles theta and phi, this wil rotate the 
-    robot about the axis for which its claw is in
-    """
-    # recalibrate position
-    x, y, z, roll, pitch, yaw = pos
+    print(dx, dy, dz)
 
 
+    arm.set_position(x=x-dx,y=y-dy,z=z-dz,roll=new_roll, pitch=new_pitch, yaw=new_yaw)
 
 
-    radius = 162 # radius of rotation about roll
-    orig_vec = [0, 0, -radius]
-    rot_vec = y_rot(orig_vec, phi)
-
-    offset = sub(orig_vec, rot_vec)
-
-
-    x += offset[0]
-    z += offset[2]
-    roll -= phi
-    pos[0] += offset[0]
-    pos[2] += offset[2]
-    pos[3] -= phi
-
-    arm.set_position(x=x, y = y, z = z, roll=roll, pitch=pitch, yaw=yaw, is_radian = False)
-    return rot_vec
-
-
-def axis_rotation(position):
-    """
-    Rotates the robot arm about an arbitrary axis
-
-    Input: 
-    Position [list]; the initial position of the robot arm
-    """
-
-    print(arm.get_position()[1])
-    x, y, z, roll, pitch, yaw = position
-
-    roll, pitch = -180, 0
-    if x >= 0 : # robot constantly tangles itself; fix later
-        yaw = -90
-    else:
-        yaw = 90
-
-
-    radius = 162
-
-
-    arm.set_position(x=x, y = y, z = z, roll=roll, pitch=pitch, yaw=yaw, is_radian = False)
 
 
 
 
 if __name__ == '__main__':
-    # save_folder = "hene_laser_WP_neg2"
-
-    # npy_file = np.load(f"{save_folder}/hene_frame_0392.npy")
-    # plt.imshow(npy_file.astype(np.uint8), interpolation='nearest')
-    # plt.show()
-    # cv2.waitKey(2000)
-    # #print(np.shape(np.mean(npy_file,axis=2)))
-
-    # if not os.path.exists(save_folder):
-    #     os.makedirs(save_folder)
 
 
+    plane = [0,-1,0]
+
+    #rotate(plane, 0) # update radius of face_shift if center moves
 
 
+    rotate_phi([0,-1,0], -45)
 
-    position = [-270.05249, 39.072674, 352.885986, -180, 0, -90]
-    x, y, z, roll, pitch, yaw = position
+    
+
 
     #arm.set_position(x=x, y = y, z = z, roll=roll, pitch=pitch, yaw=yaw, is_radian = False)
 
-    axis_rotation(arm.get_position()[1])
 
-
-
-    raise SystemExit
-
-    cap2 = cv2.VideoCapture(2)
-
-    cap2.set(cv2.CAP_PROP_FRAME_WIDTH, 8000)  
-    cap2.set(cv2.CAP_PROP_FRAME_HEIGHT, 6000) 
-    cap2.set(cv2.CAP_PROP_AUTO_EXPOSURE, 0.75)
-
-
-    actual_width = int(cap2.get(cv2.CAP_PROP_FRAME_WIDTH))
-    actual_height = int(cap2.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    print(f"Camera resolution: {actual_width}x{actual_height}")
-    frame = capture_averaged_image(cap2,100)
-    save_frame_as_matfile(save_folder, frame, 481,0)
-
-    raise SystemExit
-    position = [312.920776, -390.415833, 261.360229, 179.965986, 0.004985, -90.015852]
-    position = [312.920776-4, -390.415833, 261.360229-4, 179.965986, 0.004985, -90.015852]
-
-    x, y, z, roll, pitch, yaw = position
-
-    arm.set_position(x=x, y = y, z = z, roll=roll, pitch=pitch, yaw=yaw, is_radian = False)
-    time.sleep(5)
-    #raise SystemExit
-    radius = 162 # radius of rotation about roll
-    orig_vec = [0, 0, -radius]
-    max_angle = -120
-    initial_angle = -60
-    angle_step = -0.25
-    frame_count = 241
-    current_angle = initial_angle 
-    for _ in range(int(np.abs(max_angle-initial_angle)/np.abs(angle_step))):
-        frame = capture_averaged_image(cap2,50)
-        save_frame_as_matfile(save_folder, frame, frame_count,current_angle)
-
-        orig_vec = axis_rot(angle_step, orig_vec, position)
-        time.sleep(3)
-        current_angle += angle_step
-        frame_count += 1
-
-    pass

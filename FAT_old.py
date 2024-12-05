@@ -143,9 +143,9 @@ def compute_transformation_matrix(rvec, tvec):
 def start():
     try:
         # Install xArm Gripper
-        print("hither")
+        # print("hither")
         code = arm.set_counter_reset()
-        print("trying")
+        # print("trying")
         weight = 0.610 
         center_of_gravity = (0.06125, 0.0458, 0.0375) 
         arm.set_tcp_load(weight=weight, center_of_gravity=center_of_gravity)
@@ -244,7 +244,7 @@ def pickup_claw(arm,coor,pipeline,target_id,special=False):
     pickup_pos=place[:2]+[height]+place[3:]
     code = arm.set_position_aa(place[:2]+[height]+place[3:], speed=speeds,mvacc=100, wait=True)
     if special:
-        arm.set_gripper_position(410,wait=True) 
+        arm.set_gripper_position(390,wait=True) 
     else:
         arm.set_gripper_position(630,wait=True) 
 
@@ -402,22 +402,30 @@ def fine_adjust(arm,pipeline,target_id):
             if movex==0 and movey==0:
                 leave=True
             code,place=arm.get_position_aa(is_radian=False)
-            code = arm.set_position_aa([place[0]+movex]+[place[1]+movey]+place[2:], speed=30,mvacc=50, wait=True)
-            
+            code = arm.set_position_aa([place[0]+movex]+[place[1]+movey]+place[2:], speed=20,mvacc=30, wait=True)
+            # print(movex,movey)
             # color_image_with_markers = cv2.aruco.drawDetectedMarkers(color_image, corners, target_id)
             # Draw center point
             # cv2.circle(color_image, (center_x, center_y), 5, (0, 255, 0), -1)
             
             # cv2.imshow('Detected ArUco Markers', color_image)
     depth_value = depth_image[center_y, center_x]
+    h, w = depth_image.shape
+    center_h = h // 2
+    center_w = w // 2
+   
+    # Get 5x5 square centered at middle
+    square = depth_image[center_h-1:center_h+2, center_w-1:center_w+2]
+    depth_value=np.mean(square)
+    print(depth_value,"depth")
     rotation_angle = calculate_rotation_angle(corners)
     rotation_angle+=90
-    code = arm.set_position_aa([place[0]+71]+[place[1]+37]+place[2:], speed=50,mvacc=100, wait=True)
+    code = arm.set_position_aa([place[0]+72.2]+[place[1]+36]+place[2:], speed=50,mvacc=100, wait=True)
     code,pos = arm.get_servo_angle(servo_id=7,is_radian=False)
     code = arm.set_servo_angle(servo_id=7,wait=True,angle=pos+rotation_angle,is_radian=False)
 
 
-    print("depth",depth_value)
+    # print("depth",depth_value)
     return depth_value,rotation_angle
 def fine_adjust_wo_move(arm,pipeline,target_id):
     leave=False
@@ -459,6 +467,7 @@ def rgb_to_intensity_and_peak(frame):
     # Convert RGB to grayscale (intensity)
     intensity = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     print(intensity.shape)
+
     # Find the position of the maximum intensity
     min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(intensity)
 
@@ -493,7 +502,7 @@ def find_pos(arm,coor,pipeline,target_id):
     # height=height-100
     height=400-height
     height=height+100
-    
+    print(height,"height of object")
     code,place=arm.get_position_aa(is_radian=False)
     pickup_pos=place[:2]+[height]+place[3:]
     # code = arm.set_position_aa(place[:2]+[height]+place[3:], speed=speeds,mvacc=100, wait=True)
@@ -501,8 +510,8 @@ def find_pos(arm,coor,pipeline,target_id):
 
     # code = arm.set_position_aa(place[:2]+[400]+place[3:], speed=speeds,mvacc=100, wait=True)
     # code = arm.set_servo_angle(angle=[180,75,-180,20,0,90,-60],is_radian=False,speed=speeds)
-    # gohome()
-    print("Place found: ",place)
+    gohome()
+    # print("Place found: ",place)
     return place,rotation
 def rotate_claw(arm,rotation_angle):
     code,pos = arm.get_servo_angle(servo_id=7,is_radian=False)
@@ -529,12 +538,12 @@ def rotate_motor_async(board):
     board.digital[cw_pin1].write(1)  # Enable the driver (active LOW)
     time.sleep(0.1)
     board.digital[cw_pin1].write(0)  # Enable the driver (active LOW)
-    print("cw 1 enabled")
+    # print("cw 1 enabled")
 
     board.digital[cw_pin2].write(1)  # Enable the driver (active LOW)
     time.sleep(0.1)
     board.digital[cw_pin2].write(0)  # Enable the driver (active LOW)
-    print("cw 2 enabled")
+    # print("cw 2 enabled")
 def rotate_motor(revolutions, direction, board,option=0,speed_rpm=60):
     pul_pin1,dirp_pin1,dirm_pin1,ena_pin1=4,3,2,None
     pul_pin2,dirp_pin2,dirm_pin2,ena_pin2=9,7,5,None
@@ -754,8 +763,8 @@ def find_position_of_tag(cams,tag_id,size=0.062):
             mem[1]=mem[1]*1000
             mem[2]=400
             place,rotation=find_pos(arm,mem,pipeline,tag_id)
-            gohome()
-            print("Place found: ",place)
+            # gohome()
+            # print("Place found: ",place)
             return place,rotation
 
 
@@ -955,7 +964,8 @@ def FAT(cams,tag_id,size=0.062):
                 color_frame = frames.get_color_frame()
                 color_image = np.asanyarray(color_frame.get_data())
                 corners, id = detect_aruco(color_image, target_id)
-                print(corners, "corners")
+                # print(corners, "corners")
+
                 if id is not None:
                     # Calculate the center of the marker
                     center_x = int((corners[0][0] + corners[1][0] + corners[2][0] + corners[3][0]) / 4)
@@ -1017,17 +1027,33 @@ def calculate_approach_vector(coor,rotation):
     """
     add_z=0
     Delx=0
-    if rotation>100 and rotation<270:
-        add_z=4
-        Delx=-1
+    print(rotation,"rotation in approach")
+    add_z=-0.2+0.02*rotation
+    Delx=1.7+0.01*rotation
+    if rotation>280:
+        add_z=0.6
+        Delx=-1.2+0.01*(180-rotation)
+    elif rotation>180:
+        add_z=1
+        Delx=-1.2+0.01*(180-rotation)
+    elif rotation>90:
+        add_z=1.1
+        Delx=2.4-0.01*(rotation)
+    # elif rotation<260:
+    #     add_z=3.2
+    #     Delx=1
+    # elif rotation<=360:
+    #     Delx=0.6 
     x_uv,y_uv=rotate_coordinate_plane(rotation)
-    x,y=x_uv*(Delx)+y_uv*(-110)
+    # print(x_uv*(Delx)+y_uv*(-113),"additive part")
+    x,y=x_uv*(Delx)+y_uv*(-113)
+
     tag_pos_fat=[coor[0]+x]+[coor[1]+y]+[coor[2]-81.4+add_z]+coor[3:]
-    print(rotation)
+    # print(rotation)
     dir_move= np.concatenate([y_uv, np.zeros(4)])
     return tag_pos_fat,dir_move
 
-def move_along_vector(arm, start_pose, direction, distance=18):
+def move_along_vector(arm, start_pose, direction, distance=17):
     """
     Move the robot arm along a vector in steps.
 
@@ -1039,7 +1065,7 @@ def move_along_vector(arm, start_pose, direction, distance=18):
     - step_distance: Distance moved in each step (mm).
     """
     # Normalize the vector for stepwise movement
-    print(distance*direction)
+    # print(distance*direction)
     next_pose=start_pose+distance*direction
     arm.set_position_aa(
             next_pose,
@@ -1063,10 +1089,7 @@ if __name__ == '__main__':
     cams=(cap1,cap2,cap3,pipeline)
     # pickup_element_with_tag(cams,11)
 
-    tag_pos,rotation=find_position_of_tag(cams,11)
-    tag_pos_fat,dir_move=calculate_approach_vector(tag_pos,(rotation+90)%360)
-    print(dir_move)
-    print("rotation",(rotation+90)%360)
+    
     # tag_pos,rotation=find_position_of_tag(cams,11)
     # print("rotation",(rotation+90)%360)
     # tag_pos,rotation=find_position_of_tag(cams,11)
@@ -1075,9 +1098,13 @@ if __name__ == '__main__':
     # tag_pos_fat=[tag_pos[0]-1.4]+[tag_pos[1]-110]+[tag_pos[2]-81.5]+tag_pos[3:]
     # pickup camera
     
-    print(rotate_coordinate_plane((rotation+90)%360))
+    # print(rotate_coordinate_plane((rotation+90)%360))
     
-    for i in range(1):
+    for i in range(5):
+        tag_pos,rotation=find_position_of_tag(cams,11)
+        tag_pos_fat,dir_move=calculate_approach_vector(tag_pos,(rotation+90)%360)
+        # print(dir_move)
+        # print("rotation",(rotation+90)%360)
         fat_position,rotation=pickup_element_with_tag(cams,1,0.038,True)
         
         # FAT(cams,11)
@@ -1099,7 +1126,7 @@ if __name__ == '__main__':
         rotate_motor_async(board)
         # code = arm.set_position_aa([place[0]]+[place[1]+13.8]+[place[2]]+place[3:], speed=2,mvacc=20, wait=True)
         move_along_vector(arm,place,dir_move)
-        print("Testing motor rotation...")
+        # print("Testing motor rotation...")
         time.sleep(3)
         rotate_motor_async(board)
         # # Test rotation in one direction

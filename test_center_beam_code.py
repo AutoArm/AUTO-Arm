@@ -534,7 +534,7 @@ def capture_averaged_image(cap, n_avg):
         if not ret:
             return None
         if indx==0:
-            frames=frame.astype(np.float16)
+            frames=frame.astype(np.float32)
         else:
             frames = frames + frame.astype(np.float16)
     

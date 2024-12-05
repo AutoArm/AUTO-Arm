@@ -143,9 +143,9 @@ def compute_transformation_matrix(rvec, tvec):
 def start():
     try:
         # Install xArm Gripper
-        print("hither")
+        # print("hither")
         code = arm.set_counter_reset()
-        print("trying")
+        # print("trying")
         weight = 0.610 
         center_of_gravity = (0.06125, 0.0458, 0.0375) 
         arm.set_tcp_load(weight=weight, center_of_gravity=center_of_gravity)
@@ -204,7 +204,7 @@ def center_arm(arm,frame):
         return 0
     else:
         return -1   
-def pickup_claw(arm,coor,pipeline,target_id,special=False):
+def pickup_claw(arm,coor,pipeline,target_id,weight,special=False):
     arm.set_gripper_enable(True)
     code = arm.set_gripper_speed(2000)
     arm.set_gripper_position(850,wait=True)
@@ -227,11 +227,11 @@ def pickup_claw(arm,coor,pipeline,target_id,special=False):
         quad=4
 
     highcoor=[coor[0]-70]+[coor[1]-35]+[400]+coor[3:]
-    print("here",highcoor)
+    # print("here",highcoor)
     code = arm.set_servo_angle(servo_id=1,angle=new_angle,wait=True,is_radian=False,speed=speeds)
     code = arm.set_position_aa(highcoor, speed=speeds,mvacc=100, wait=True)
-    height=fine_adjust(arm,pipeline,target_id)
-    print("after fine adjust")
+    height,rotation=fine_adjust(arm,pipeline,target_id)
+    # print("after fine adjust")
     height=height-100
     height=400-height
     if special:
@@ -244,15 +244,16 @@ def pickup_claw(arm,coor,pipeline,target_id,special=False):
     pickup_pos=place[:2]+[height]+place[3:]
     code = arm.set_position_aa(place[:2]+[height]+place[3:], speed=speeds,mvacc=100, wait=True)
     if special:
-        arm.set_gripper_position(460,wait=True) 
+        arm.set_gripper_position(390,wait=True) 
     else:
         arm.set_gripper_position(630,wait=True) 
 
-    arm.set_tcp_load(weight=0.8, center_of_gravity=(0.06125, 0.0458, 0.0375))
+    arm.set_tcp_load(2, center_of_gravity=(0.06125, 0.0458, 0.0375))
     code = arm.set_position_aa(place[:2]+[400]+place[3:], speed=speeds,mvacc=100, wait=True)
+    arm.set_tcp_load(weight, center_of_gravity=(0.06125, 0.0458, 0.0375))
     code = arm.set_servo_angle(angle=[180,75,-180,20,0,90,-60],is_radian=False,speed=speeds)
 
-    return pickup_pos
+    return pickup_pos,rotation
 def pickup_claw_stay(arm,coor,pipeline):
     arm.set_gripper_enable(True)
     code = arm.set_gripper_speed(1000)
@@ -278,7 +279,7 @@ def pickup_claw_stay(arm,coor,pipeline):
     highcoor=[coor[0]-75]+[coor[1]-35]+[400]+coor[3:]
     code = arm.set_servo_angle(servo_id=1,angle=new_angle,wait=True,is_radian=False,speed=speeds)
     code = arm.set_position_aa(highcoor, speed=speeds,mvacc=100, wait=True)
-    height=fine_adjust(arm,pipeline)
+    height,rotation=fine_adjust(arm,pipeline)
     height=height-100
     height=400-height
     height=height
@@ -316,9 +317,11 @@ def drop_claw(arm,coor):
     code=arm.set_servo_angle(servo_id=1,wait=True,angle=new_angle,is_radian=False,speed=50)
     code = arm.set_position_aa(highcoor,is_radian=False, speed=80,  mvacc=100, wait=True)
     code = arm.set_position_aa(mid_coor,is_radian=False, speed=80,  mvacc=100, wait=True)
-    code = arm.set_position_aa(coor,is_radian=False, speed=20,  mvacc=100, wait=True)
+    arm.set_tcp_load(weight=2, center_of_gravity=(0.06125, 0.0458, 0.0375))
+
+    code = arm.set_position_aa(coor,is_radian=False, speed=20,  mvacc=20, wait=True)
     arm.set_gripper_position(850,wait=True)
-    arm.set_tcp_load(weight=0.61, center_of_gravity=(0.06125, 0.0458, 0.0375))
+    arm.set_tcp_load(weight=0.8, center_of_gravity=(0.06125, 0.0458, 0.0375))
     code = arm.set_position_aa(endcoor,is_radian=False, speed=100,  mvacc=100, wait=True)
     code=arm.set_servo_angle(angle=[180,75,-180,20,0,90,-60],speed=80,is_radian=False,wait=True)
     return
@@ -390,35 +393,43 @@ def fine_adjust(arm,pipeline,target_id):
         color_frame = frames.get_color_frame()
         color_image = np.asanyarray(color_frame.get_data())
         corners, id = detect_aruco(color_image, target_id)
-        print(corners, "corners")
+        # print(corners, "corners")
         if id is not None:
             # Calculate the center of the marker
             center_x = int((corners[0][0] + corners[1][0] + corners[2][0] + corners[3][0]) / 4)
             center_y = int((corners[0][1] + corners[1][1] + corners[2][1] + corners[3][1]) / 4)
             
-            print(f"Tag ID: {target_id} - Center (x, y): ({center_x}, {center_y})")
+            # print(f"Tag ID: {target_id} - Center (x, y): ({center_x}, {center_y})")
             movey=(320-center_x)/10
             movex=(240-center_y)/10
             if movex==0 and movey==0:
                 leave=True
             code,place=arm.get_position_aa(is_radian=False)
-            code = arm.set_position_aa([place[0]+movex]+[place[1]+movey]+place[2:], speed=50,mvacc=100, wait=True)
-            
+            code = arm.set_position_aa([place[0]+movex]+[place[1]+movey]+place[2:], speed=20,mvacc=30, wait=True)
+            # print(movex,movey)
             # color_image_with_markers = cv2.aruco.drawDetectedMarkers(color_image, corners, target_id)
             # Draw center point
-            cv2.circle(color_image, (center_x, center_y), 5, (0, 255, 0), -1)
+            # cv2.circle(color_image, (center_x, center_y), 5, (0, 255, 0), -1)
             
-            cv2.imshow('Detected ArUco Markers', color_image)
+            # cv2.imshow('Detected ArUco Markers', color_image)
     depth_value = depth_image[center_y, center_x]
+    h, w = depth_image.shape
+    center_h = h // 2
+    center_w = w // 2
+   
+    # Get 5x5 square centered at middle
+    square = depth_image[center_h-1:center_h+2, center_w-1:center_w+2]
+    depth_value=np.mean(square)
+    print(depth_value,"depth")
     rotation_angle = calculate_rotation_angle(corners)
     rotation_angle+=90
-    code = arm.set_position_aa([place[0]+71]+[place[1]+37]+place[2:], speed=50,mvacc=100, wait=True)
+    code = arm.set_position_aa([place[0]+72.2]+[place[1]+36]+place[2:], speed=50,mvacc=100, wait=True)
     code,pos = arm.get_servo_angle(servo_id=7,is_radian=False)
     code = arm.set_servo_angle(servo_id=7,wait=True,angle=pos+rotation_angle,is_radian=False)
 
 
-    print("depth",depth_value)
-    return depth_value
+    # print("depth",depth_value)
+    return depth_value,rotation_angle
 def fine_adjust_wo_move(arm,pipeline,target_id):
     leave=False
     depth_image=None
@@ -459,40 +470,42 @@ def rgb_to_intensity_and_peak(frame):
     # Convert RGB to grayscale (intensity)
     intensity = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     print(intensity.shape)
+
     # Find the position of the maximum intensity
     min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(intensity)
 
     return intensity, max_loc
 def find_pos(arm,coor,pipeline,target_id):
-    # arm.set_gripper_enable(True)
-    # code = arm.set_gripper_speed(2000)
-    # arm.set_gripper_position(850,wait=True)
+    arm.set_gripper_enable(True)
+    code = arm.set_gripper_speed(2000)
+    arm.set_gripper_position(850,wait=True)
     # print("Claw pickup at coordinate: ",coor)
-    # speeds=80
-    # x=coor[0]
-    # y=coor[1]
+    speeds=80
+    x=coor[0]
+    y=coor[1]
 
-    # new_angle=math.atan2(y,x)/math.pi*180
-    # new_angle+=180
-    # quad=0
-    # if x>=0 and y>=0:
-    #     quad=1
-    # elif x<0 and y>=0:
-    #     quad=2
-    #     new_angle=280
-    # elif x<0 and y<0:
-    #     quad=3
-    # else:
-    #     quad=4
+    new_angle=math.atan2(y,x)/math.pi*180
+    new_angle+=180
+    quad=0
+    if x>=0 and y>=0:
+        quad=1
+    elif x<0 and y>=0:
+        quad=2
+        new_angle=280
+    elif x<0 and y<0:
+        quad=3
+    else:
+        quad=4
 
-    # highcoor=[coor[0]-70]+[coor[1]-35]+[400]+coor[3:]
-    # code = arm.set_servo_angle(servo_id=1,angle=new_angle,wait=True,is_radian=False,speed=speeds)
-    # code = arm.set_position_aa(highcoor, speed=speeds,mvacc=100, wait=True)
-    height=fine_adjust_wo_move(arm,pipeline,target_id)
-    print("after fine adjust")
-    height=height-100
+    highcoor=[coor[0]-70]+[coor[1]-35]+[400]+coor[3:]
+    code = arm.set_servo_angle(servo_id=1,angle=new_angle,wait=True,is_radian=False,speed=speeds)
+    code = arm.set_position_aa(highcoor, speed=speeds,mvacc=100, wait=True)
+    height,rotation=fine_adjust(arm,pipeline,target_id)
+    # print("after fine adjust")
+    # height=height-100
     height=400-height
-    
+    height=height+100
+    print(height,"height of object")
     code,place=arm.get_position_aa(is_radian=False)
     pickup_pos=place[:2]+[height]+place[3:]
     # code = arm.set_position_aa(place[:2]+[height]+place[3:], speed=speeds,mvacc=100, wait=True)
@@ -500,8 +513,9 @@ def find_pos(arm,coor,pipeline,target_id):
 
     # code = arm.set_position_aa(place[:2]+[400]+place[3:], speed=speeds,mvacc=100, wait=True)
     # code = arm.set_servo_angle(angle=[180,75,-180,20,0,90,-60],is_radian=False,speed=speeds)
-    # gohome()
-    return height
+    gohome()
+    # print("Place found: ",place)
+    return pickup_pos,rotation
 def rotate_claw(arm,rotation_angle):
     code,pos = arm.get_servo_angle(servo_id=7,is_radian=False)
     code = arm.set_servo_angle(servo_id=7,wait=True,angle=pos+rotation_angle,is_radian=False)
@@ -527,12 +541,37 @@ def rotate_motor_async(board):
     board.digital[cw_pin1].write(1)  # Enable the driver (active LOW)
     time.sleep(0.1)
     board.digital[cw_pin1].write(0)  # Enable the driver (active LOW)
-    print("cw 1 enabled")
+    # print("cw 1 enabled")
 
     board.digital[cw_pin2].write(1)  # Enable the driver (active LOW)
     time.sleep(0.1)
     board.digital[cw_pin2].write(0)  # Enable the driver (active LOW)
-    print("cw 2 enabled")
+    # print("cw 2 enabled")
+def rotate_motor_async_sing(board,num=1):
+    ccw_pin1 = 8  
+    cw_pin1 = 9  
+    stop_pin1 = 7  
+
+    ccw_pin2 = 5  
+    cw_pin2 = 6
+    stop_pin2 = 4  
+    # Set up the pins
+    board.digital[ccw_pin1].mode = pyfirmata.OUTPUT
+    board.digital[cw_pin1].mode = pyfirmata.OUTPUT
+    board.digital[stop_pin1].mode = pyfirmata.OUTPUT
+    board.digital[ccw_pin2].mode = pyfirmata.OUTPUT
+    board.digital[cw_pin2].mode = pyfirmata.OUTPUT
+    board.digital[stop_pin2].mode = pyfirmata.OUTPUT
+
+
+    if num==1:
+        board.digital[cw_pin1].write(1)  # Enable the driver (active LOW)
+        time.sleep(0.1)
+        board.digital[cw_pin1].write(0)  # Enable the driver (active LOW)
+    else:
+        board.digital[cw_pin2].write(1)  # Enable the driver (active LOW)
+        time.sleep(0.1)
+        board.digital[cw_pin2].write(0)  # Enable the driver (active LOW)
 def rotate_motor(revolutions, direction, board,option=0,speed_rpm=60):
     pul_pin1,dirp_pin1,dirm_pin1,ena_pin1=4,3,2,None
     pul_pin2,dirp_pin2,dirm_pin2,ena_pin2=9,7,5,None
@@ -620,11 +659,11 @@ def initialize_cams():
 
     # Calculate the scaling factor
     scale_factor = actual_distance / calibrated_distance
-    print(f"Scaling factor: {scale_factor}")
+    # print(f"Scaling factor: {scale_factor}")
 
     # Adjust the translation vector
     T = T * scale_factor
-    print(f"Scaled translation vector:\n{T}")
+    # print(f"Scaled translation vector:\n{T}")
 
     # Compute projection matrices
     proj1 = mtx1 @ np.hstack((np.eye(3), np.zeros((3, 1))))
@@ -638,8 +677,9 @@ def initialize_cams():
     cap3 = cv2.VideoCapture(2, cv2.CAP_MSMF)
     cap3.set(cv2.CAP_PROP_FRAME_WIDTH, 8000)
     cap3.set(cv2.CAP_PROP_FRAME_HEIGHT, 6000)
+    print("cameras setup")
     return (cap1,cap2,cap3,pipeline)
-def pickup_element_with_tag(cams,tag_id,size=0.062,special=False):
+def pickup_element_with_tag(cams,tag_id,weight=0.8,size=0.062,special=False):
     aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
     parameters = cv2.aruco.DetectorParameters()
     cap1,cap2,cap3,pipeline=cams
@@ -653,7 +693,7 @@ def pickup_element_with_tag(cams,tag_id,size=0.062,special=False):
     code = arm.set_gripper_speed(2000)
     arm.set_gripper_position(850,wait=True)
     marker_length = size  # Length of the marker's side in meters
-    print("inloop")
+    # print("inloop")
     while True: 
         
         ret1, frame1 = cap1.read()
@@ -670,14 +710,14 @@ def pickup_element_with_tag(cams,tag_id,size=0.062,special=False):
             rvec1, tvec1 = estimate_pose(corners1, mtx1, dist1, marker_length)
             rvec2, tvec2 = estimate_pose(corners2, mtx2, dist2, marker_length)
 
-            print(f"Target ArUco tag detected!")
-            print(f"Camera 1 - Rotation Vector:\n{rvec1}\nTranslation Vector:\n{tvec1}")
-            print(f"Camera 2 - Rotation Vector:\n{rvec2}\nTranslation Vector:\n{tvec2}")
+            # print(f"Target ArUco tag detected!")
+            # print(f"Camera 1 - Rotation Vector:\n{rvec1}\nTranslation Vector:\n{tvec1}")
+            # print(f"Camera 2 - Rotation Vector:\n{rvec2}\nTranslation Vector:\n{tvec2}")
 
             avg_rvec = average_rotation_vectors([rvec1, rvec2])
             avg_tvec = np.mean([tvec1, tvec2], axis=0)
 
-            print(f"Averaged Rotation Vector:\n{avg_rvec}\nAveraged Translation Vector:\n{avg_tvec}")
+            # print(f"Averaged Rotation Vector:\n{avg_rvec}\nAveraged Translation Vector:\n{avg_tvec}")
             avg_rvec_text = f"Avg Rvec: {avg_rvec[0][0]:.2f}, {avg_rvec[1][0]:.2f}, {avg_rvec[2][0]:.2f}"
             avg_tvec_text = f"Avg Tvec: {avg_tvec[0][0]:.2f}, {avg_tvec[1][0]:.2f}, {avg_tvec[2][0]:.2f}"
             
@@ -690,11 +730,12 @@ def pickup_element_with_tag(cams,tag_id,size=0.062,special=False):
             mem[2]=(1.2-mem[2])*1000
             pos=None
             if special:
-                pos=pickup_claw(arm,mem,pipeline,target_id,True)
+                pos,rotation=pickup_claw(arm,mem,pipeline,target_id,1.3,True)
+
             else:
-                pos=pickup_claw(arm,mem,pipeline,target_id)
+                pos,rotation=pickup_claw(arm,mem,pipeline,target_id,weight)
             
-            return pos
+            return pos,rotation
         
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -713,7 +754,7 @@ def find_position_of_tag(cams,tag_id,size=0.062):
     code = arm.set_gripper_speed(2000)
     arm.set_gripper_position(850,wait=True)
     marker_length = size  # Length of the marker's side in meters
-    print("inloop")
+    # print("inloop")
     while True: 
         
         ret1, frame1 = cap1.read()
@@ -730,14 +771,14 @@ def find_position_of_tag(cams,tag_id,size=0.062):
             rvec1, tvec1 = estimate_pose(corners1, mtx1, dist1, marker_length)
             rvec2, tvec2 = estimate_pose(corners2, mtx2, dist2, marker_length)
 
-            print(f"Target ArUco tag detected!")
-            print(f"Camera 1 - Rotation Vector:\n{rvec1}\nTranslation Vector:\n{tvec1}")
-            print(f"Camera 2 - Rotation Vector:\n{rvec2}\nTranslation Vector:\n{tvec2}")
+            # print(f"Target ArUco tag detected!")
+            # print(f"Camera 1 - Rotation Vector:\n{rvec1}\nTranslation Vector:\n{tvec1}")
+            # print(f"Camera 2 - Rotation Vector:\n{rvec2}\nTranslation Vector:\n{tvec2}")
 
             avg_rvec = average_rotation_vectors([rvec1, rvec2])
             avg_tvec = np.mean([tvec1, tvec2], axis=0)
 
-            print(f"Averaged Rotation Vector:\n{avg_rvec}\nAveraged Translation Vector:\n{avg_tvec}")
+            # print(f"Averaged Rotation Vector:\n{avg_rvec}\nAveraged Translation Vector:\n{avg_tvec}")
             avg_rvec_text = f"Avg Rvec: {avg_rvec[0][0]:.2f}, {avg_rvec[1][0]:.2f}, {avg_rvec[2][0]:.2f}"
             avg_tvec_text = f"Avg Tvec: {avg_tvec[0][0]:.2f}, {avg_tvec[1][0]:.2f}, {avg_tvec[2][0]:.2f}"
             
@@ -748,33 +789,10 @@ def find_position_of_tag(cams,tag_id,size=0.062):
             mem[0]=-mem[0]*1000
             mem[1]=mem[1]*1000
             mem[2]=400
-            pos=None
-            move_to(arm,mem)
-            depth=find_pos(arm,mem,pipeline,target_id)
-            count=1
-            area=1
-            while area<200000:
-                code,pos=arm.get_position_aa(is_radian=False)
-                code = arm.set_position_aa(pos[:2]+[pos[2]-20]+pos[3:], speed=20,mvacc=20, wait=True)
-                area=abs(find_pos(arm,mem,pipeline,target_id))
-                print("AREAAAAAAAAAAAAAAAAAAAA",area)
-                # count+=1
-            frames = pipeline.wait_for_frames()
-            depth_frame = frames.get_depth_frame()
-            depth_image = np.asanyarray(depth_frame.get_data())
-            color_frame = frames.get_color_frame()
-            color_image = np.asanyarray(color_frame.get_data())
-            corners, id = detect_aruco(color_image, target_id)
-            rotation_angle = calculate_rotation_angle(corners)
-            rotation_angle+=90
-            code = arm.set_position_aa(pos[:2]+[400]+pos[3:], speed=40,mvacc=40, wait=True)
-            code,place=arm.get_position_aa(is_radian=False)
-            code = arm.set_position_aa([place[0]+71]+[place[1]+37]+place[2:], speed=50,mvacc=100, wait=True)
-            code,pos = arm.get_servo_angle(servo_id=7,is_radian=False)
-            code = arm.set_servo_angle(servo_id=7,wait=True,angle=pos+rotation_angle,is_radian=False)
-            code,place=arm.get_position_aa(is_radian=False)
+            place,rotation=find_pos(arm,mem,pipeline,tag_id)
             gohome()
-            return place
+            # print("Place found: ",place)
+            return place,rotation
 
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -830,7 +848,7 @@ def offset_coor(boxes,coor):
     return [coor[0]]+[coor[1]-boxes*105]+coor[2:]
 def gohome():
     code,place=arm.get_position_aa(is_radian=False)
-    code = arm.set_position_aa(place[:2]+[400]+place[3:], speed=80,mvacc=100, wait=True)
+    code = arm.set_position_aa(place[:2]+[500]+place[3:], speed=80,mvacc=100, wait=True)
     code=arm.set_servo_angle(angle=[180,75,-180,20,0,90,-60],speed=60,is_radian=False,wait=True)
 def readings(cams,step_size,steps):
     cap1,cap2,cap3,pipeline=cams
@@ -973,7 +991,8 @@ def FAT(cams,tag_id,size=0.062):
                 color_frame = frames.get_color_frame()
                 color_image = np.asanyarray(color_frame.get_data())
                 corners, id = detect_aruco(color_image, target_id)
-                print(corners, "corners")
+                # print(corners, "corners")
+
                 if id is not None:
                     # Calculate the center of the marker
                     center_x = int((corners[0][0] + corners[1][0] + corners[2][0] + corners[3][0]) / 4)
@@ -996,6 +1015,93 @@ def FAT(cams,tag_id,size=0.062):
             code = arm.set_position_aa([place[0]]+[place[1]]+place[2:], speed=50,mvacc=100, wait=True)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
+def rotate_coordinate_plane(angle_degrees):
+    """
+    Rotate the coordinate plane clockwise by the given angle.
+    
+    :param angle_degrees: Angle of rotation in degrees (clockwise)
+    :return: Rotated unit vectors [x_unit_vector, y_unit_vector]
+    """
+    # Convert angle to radians
+    angle_radians = np.deg2rad(angle_degrees)
+    
+    # Rotation matrix for clockwise rotation
+    rotation_matrix = np.array([
+        [np.cos(angle_radians), np.sin(angle_radians)],
+        [-np.sin(angle_radians), np.cos(angle_radians)]
+    ])
+    
+    # Original unit vectors
+    x_unit = np.array([1, 0])
+    y_unit = np.array([0, 1])
+    
+    # Rotate unit vectors
+    rotated_x = rotation_matrix @ x_unit
+    rotated_y = rotation_matrix @ y_unit
+    
+    return [rotated_x, rotated_y]
+def calculate_approach_vector(coor,rotation):
+    """
+    Calculate a unit vector to approach the tag based on its orientation.
+    
+    Parameters:
+    - tag_pose: List of [x, y, z, roll, pitch, yaw].
+    - offset_distance: Distance from the tag for starting the approach.
+
+    Returns:
+    - start_pose: The starting position before the approach.
+    - approach_vector: Unit vector pointing towards the tag.
+    """
+    add_z=0
+    Delx=0
+    print(rotation,"rotation in approach")
+    add_z=-0.2+0.02*rotation
+    Delx=1.7+0.01*rotation
+    if rotation>280:
+        add_z=0.6
+        Delx=-1+0.01*(180-rotation)
+    elif rotation>180:
+        add_z=1
+        Delx=-1.2+0.01*(180-rotation)
+    elif rotation>90:
+        add_z=1.1
+        Delx=2.4-0.01*(rotation)
+    # elif rotation<260:
+    #     add_z=3.2
+    #     Delx=1
+    # elif rotation<=360:
+    #     Delx=0.6 
+    x_uv,y_uv=rotate_coordinate_plane(rotation)
+    # print(x_uv*(Delx)+y_uv*(-113),"additive part")
+    x,y=x_uv*(Delx)+y_uv*(-113)
+
+    tag_pos_fat=[coor[0]+x]+[coor[1]+y]+[coor[2]-81.4+add_z]+coor[3:]
+    # print(rotation)
+    dir_move= np.concatenate([y_uv, np.zeros(4)])
+    return tag_pos_fat,dir_move
+
+def move_along_vector(arm, start_pose, direction, distance=17):
+    """
+    Move the robot arm along a vector in steps.
+
+    Parameters:
+    - arm: The robot arm object.
+    - start_pose: Starting pose of the robot arm.
+    - vector: Unit vector for direction of movement.
+    - steps: Number of steps to approach the tag.
+    - step_distance: Distance moved in each step (mm).
+    """
+    # Normalize the vector for stepwise movement
+    # print(distance*direction)
+    next_pose=start_pose+distance*direction
+    arm.set_position_aa(
+            next_pose,
+            speed=10,
+            mvacc=20,
+            wait=True
+        )
+    
+
 if __name__ == '__main__':
     board = pyfirmata.Arduino('COM5')  # Adjust this to your Arduino's port
     pul_pin1 = 4 # Connect to PUL+ on DM542T 4/9
@@ -1003,60 +1109,45 @@ if __name__ == '__main__':
     dirm_pin1 = 2  # Connect to DIR- on DM542T 2/5
     ena_pin1 = None # Connect to ENA+ on DM542T (optional, set to None if not used)
 
-    
     camera_tag=2
     lens_tag=2
     start()
     cap1,cap2,cap3,pipeline=initialize_cams()
     cams=(cap1,cap2,cap3,pipeline)
-    tag_pos=find_position_of_tag(cams,11)
-    move_to(arm,tag_pos)
-    tag_pos_fat=[tag_pos[0]+1.3]+[tag_pos[1]-110]+[tag_pos[2]-50]+tag_pos[3:]
+    # pickup_element_with_tag(cams,11)
+
+    
+    # tag_pos,rotation=find_position_of_tag(cams,11)
+    # print("rotation",(rotation+90)%360)
+    # tag_pos,rotation=find_position_of_tag(cams,11)
+    # print("rotation",(rotation+90)%360)
+    # move_to(arm,tag_pos)
+    # tag_pos_fat=[tag_pos[0]-1.4]+[tag_pos[1]-110]+[tag_pos[2]-81.5]+tag_pos[3:]
     # pickup camera
-    for i in range(1):
-        fat_position=pickup_element_with_tag(cams,1,0.038,True)
-        
-        # FAT(cams,11)
-        move_to(arm,tag_pos_fat)
-        code,place=arm.get_position_aa(is_radian=False)
+    
+    # print(rotate_coordinate_plane((rotation+90)%360))
+    # tag_pos,rotation=find_position_of_tag(cams,11)
+    fat_position,fat_rotation=pickup_element_with_tag(cams,tag_id=1,size=0.038,True)
 
-        # code = arm.set_position_aa([place[0]-2]+[place[1]]+[place[2]-130]+place[3:], speed=50,mvacc=100, wait=True)
+    tag_pos,rotation=[453.270325, 27.657326, 297, 95.103202, 152.824517, 0.182659],243.63931
+    print(tag_pos,rotation)
+    fat_position,rotation=pickup_element_with_tag(cams,11,weight=2)
+    arm.set_tcp_load(weight=1, center_of_gravity= (0.06125, 0.0458, 0.0375))    
+    drop_element_at_position(arm,tag_pos)
+    
+    tag_pos_fat,dir_move=calculate_approach_vector(tag_pos,(rotation+90)%360)
+    print("hiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii")
 
-        # # code,place=arm.get_position_aa(is_radian=False)
-        # # leave=False
-        # # depth_image=None
-        # # corners=None
-        # # while not leave:
-        # #     frames = pipeline.wait_for_frames()
-        # #     depth_frame = frames.get_depth_frame()
-        # #     depth_image = np.asanyarray(depth_frame.get_data())
-        # #     color_frame = frames.get_color_frame()
-        # #     color_image = np.asanyarray(color_frame.get_data())
-        rotate_motor_async(board)
-        code = arm.set_position_aa([place[0]-0.1]+[place[1]+14]+[place[2]+0.1]+place[3:], speed=2,mvacc=20, wait=True)
-
-        print("Testing motor rotation...")
-        time.sleep(3)
-        rotate_motor_async(board)
-        # # Test rotation in one direction
-        # # print("Rotating in one direction (1/4 turn)...")
-        # # rotate_motor(2, True, board,0,3600000)
-        # # time.sleep(1)
-
-        # # print("Rotating in one direction (1/4 turn)...")
-        # # rotate_motor(2, False, board,1,3600000)
-        # # time.sleep(1)
-
-        # # print("Rotating in one direction (1/4 turn)...")
-        # # rotate_motor(2, False, board,2,3600000)
-        # # time.sleep(1)
-        
-        
-        # # print("Motor test completed")
-        
-        code,place=arm.get_position_aa(is_radian=False)
-
-        code = arm.set_position_aa([place[0]]+[place[1]-30]+[place[2]]+place[3:], speed=10,mvacc=10, wait=True)
-        gohome()
-        drop_element_at_position(arm,fat_position)
+    move_to(arm,tag_pos_fat)
+    code,place=arm.get_position_aa(is_radian=False)
+    rotate_motor_async(board)
+    move_along_vector(arm,place,dir_move)
+    time.sleep(3)
+    rotate_motor_async(board)
+    # code,place=arm.get_position_aa(is_radian=False)
+    # move_along_vector(arm,place,-dir_move)
+    # code,pos=arm.get_position_aa(is_radian=False)
+    # code = arm.set_position_aa(pos[:2]+[450]+pos[3:], speed=40,mvacc=40, wait=True)
+    # gohome()
+    # drop_element_at_position(arm,fat_position)
     board.exit()
