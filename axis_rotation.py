@@ -209,7 +209,7 @@ def face(plane):
 
     arm.set_position(x=x, y=y, z=z, roll=new_roll, pitch=new_pitch, yaw=new_yaw, is_radian=False)
 
-def face_shift(plane, radius = 166.5):
+def face_shift(plane, radius = 200):
     """
     makes the plane of the robot face a direction that 
     is normal to the plane 
@@ -263,6 +263,8 @@ def rotate(plane, theta):
 
     face_shift(new_plane)
 
+    return new_plane
+
 
 def vector_to_euler(vector):
     """
@@ -307,58 +309,130 @@ def vector_to_euler(vector):
     
     return roll, pitch, yaw
 
-def rotate_phi(plane, phi, radius = 166.5):
+
+
+def rotate_phi(plane, phi, radius=200):
     """
-    given a vector that is normal to the plane
-    this rotates that vector about phi
+    Rotates the robot arm around the plane normal vector by phi degrees
+    while maintaining the end effector's absolute position in space.
+    
+    Args:
+        plane (list/array): Vector normal to the plane [x, y, z]
+        phi (float): Rotation angle about the plane normal (degrees)
+        radius (float): Distance from base position to end effector
     """
-    plane = np.array(plane, dtype = float)
+    # Normalize plane vector
+    plane = np.array(plane, dtype=float)
     plane = normalize(plane)
-
+    
+    # Get current position
     position = arm.get_position()
-    x, y, z, roll, pitch, yaw = position[1]
-
-    roll, pitch, yaw = vector_to_rpy(plane)
-    end_effector = get_end_effector_direction(roll, pitch, yaw) 
-
-
-
-
-    new_end_effector = rotate_vector(end_effector, plane, phi)
+    x, y, z, curr_roll, curr_pitch, curr_yaw = position[1]
+    
+    # Get the current end effector direction
+    curr_end_effector = get_end_effector_direction(curr_roll, curr_pitch, curr_yaw)
+    
+    # Calculate the current end point in space
+    curr_end_point = np.array([x, y, z]) + curr_end_effector * radius
+    
+    # Project end effector direction onto plane perpendicular to rotation axis
+    # This ensures we rotate in the correct plane
+    proj = curr_end_effector - np.dot(curr_end_effector, plane) * plane
+    proj = normalize(proj)
+    
+    # Create rotation matrix for phi rotation around plane vector
+    phi_rad = np.radians(phi)
+    cos_phi = np.cos(phi_rad)
+    sin_phi = np.sin(phi_rad)
+    
+    # Get perpendicular vector to form basis for rotation
+    perp = normalize(np.cross(plane, proj))
+    
+    # Calculate new end effector direction using the rotation in the plane
+    new_end_effector = proj * cos_phi + perp * sin_phi + \
+                      plane * np.dot(curr_end_effector, plane)
+    new_end_effector = normalize(new_end_effector)
+    
+    # Convert new direction to roll, pitch, yaw
     new_roll, new_pitch, new_yaw = vector_to_euler(new_end_effector)
-
-    end_effector *= radius
-    new_end_effector *= radius
-
-    # current x, y, and z of end effector
-    cx, cy, cz = end_effector[0] + x, end_effector[1] + y, end_effector[2] + z
-
-    nx, ny, nz = new_end_effector[0] + x, new_end_effector[1] + y, new_end_effector[2] + z
-    dx, dy, dz = nx - cx, ny - cy, nz - cz
-
     
-
+    # Calculate new base position to maintain end point position
+    new_base_pos = curr_end_point - new_end_effector * radius
     
+    # Move to new position with new orientation
+    arm.set_position(
+        x=new_base_pos[0],
+        y=new_base_pos[1],
+        z=new_base_pos[2],
+        roll=new_roll,
+        pitch=new_pitch,
+        yaw=new_yaw,
+        is_radian=False
+    )
 
-    print(dx, dy, dz)
-
-
-    arm.set_position(x=x-dx,y=y-dy,z=z-dz,roll=new_roll, pitch=new_pitch, yaw=new_yaw)
-
-
-
-
-
+def rotate_phi(plane, phi, radius=200):
+    """
+    Rotates the robot arm around the plane normal vector by phi degrees
+    while maintaining the end effector's absolute position in space.
+    
+    Args:
+        plane (list/array): Vector normal to the plane [x, y, z]
+        phi (float): Rotation angle about the plane normal (degrees)
+        radius (float): Distance from base position to end effector
+    """
+    # Normalize plane vector
+    plane = np.array(plane, dtype=float)
+    plane = normalize(plane)
+    
+    # Get current position
+    position = arm.get_position()
+    x, y, z, curr_roll, curr_pitch, curr_yaw = position[1]
+    
+    # Get current end effector direction
+    curr_end_effector = get_end_effector_direction(curr_roll, curr_pitch, curr_yaw)
+    
+    # Calculate current end point in space
+    curr_end_point = np.array([x, y, z]) + curr_end_effector * radius
+    
+    # Create rotation object for rotation around plane vector
+    rot = R.from_rotvec(phi * np.pi/180 * plane)
+    
+    # Apply rotation to current end effector direction
+    new_end_effector = rot.apply(curr_end_effector)
+    new_end_effector = normalize(new_end_effector)
+    
+    # Calculate new base position to maintain end point
+    new_base_pos = curr_end_point - new_end_effector * radius
+    
+    # Convert new direction to roll, pitch, yaw
+    new_roll, new_pitch, new_yaw = vector_to_euler(new_end_effector)
+    
+    # Move to new position
+    arm.set_position(
+        x=new_base_pos[0],
+        y=new_base_pos[1],
+        z=new_base_pos[2],
+        roll=new_roll,
+        pitch=new_pitch,
+        yaw=new_yaw,
+        is_radian=False
+    )
 
 if __name__ == '__main__':
 
 
     plane = [0,-1,0]
 
-    #rotate(plane, 0) # update radius of face_shift if center moves
+    new_plane = rotate(plane, 0) # update radius of face_shift if center moves
 
 
-    rotate_phi([0,-1,0], -45)
+    rotate_phi(new_plane,10)
+
+
+
+
+
+
 
     
 

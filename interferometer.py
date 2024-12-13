@@ -248,11 +248,11 @@ def pickup_claw(arm,coor,pipeline,target_id,special=False):
     if special:
         arm.set_gripper_position(390,wait=True) 
     else:
-        arm.set_gripper_position(600,wait=True) 
+        arm.set_gripper_position(550,wait=True) 
 
     arm.set_tcp_load(weight=1.1, center_of_gravity=(0.06125, 0.0458, 0.0375))
     code = arm.set_position_aa(place[:2]+[400]+place[3:], speed=speeds,mvacc=100, wait=True)
-    code = arm.set_servo_angle(angle=[180,75,-180,20,0,90,-60],is_radian=False,speed=speeds)
+    code = arm.set_servo_angle(angle=[174,60.5,-185.4,42.1,-3.5,102.6,-87],is_radian=False,speed=speeds)
 
     return pickup_pos,rotation
 def pickup_claw_stay(arm,coor,pipeline):
@@ -430,7 +430,7 @@ def fine_adjust(arm,pipeline,target_id):
     print(depth_value,"depth")
     rotation_angle = calculate_rotation_angle(corners)
     rotation_angle+=90
-    code = arm.set_position_aa([place[0]+72.2]+[place[1]+36]+place[2:], speed=50,mvacc=100, wait=True)
+    code = arm.set_position_aa([place[0]+70]+[place[1]+36]+place[2:], speed=50,mvacc=100, wait=True)
     code,pos = arm.get_servo_angle(servo_id=7,is_radian=False)
     code = arm.set_servo_angle(servo_id=7,wait=True,angle=pos+rotation_angle,is_radian=False)
 
@@ -832,7 +832,7 @@ def offset_coor(boxes,coor):
 def gohome():
     code,place=arm.get_position_aa(is_radian=False)
     code = arm.set_position_aa(place[:2]+[450]+place[3:], speed=80,mvacc=100, wait=True)
-    code=arm.set_servo_angle(angle=[180,75,-180,20,0,90,-60],speed=60,is_radian=False,wait=True)
+    code=arm.set_servo_angle(angle=[174,60.5,-185.4,42.1,-3.5,102.6,-87],speed=60,is_radian=False,wait=True)
 def readings(cams,step_size,steps):
     cap1,cap2,cap3,pipeline=cams
     centered=False
@@ -1042,13 +1042,13 @@ def calculate_approach_vector(coor,rotation):
     Delx=1.7+0.01*rotation
     if rotation>280:
         add_z=0.6
-        Delx=-1.2+0.01*(180-rotation)
+        Delx=-1+0.01*(180-rotation)
     elif rotation>180:
         add_z=1
         Delx=-1.2+0.01*(180-rotation)
     elif rotation>90:
-        add_z=1.1
-        Delx=2.8-0.01*(rotation)
+        add_z=0.9
+        Delx=2.6-0.06*(rotation)
     # elif rotation<260:
     #     add_z=3.2
     #     Delx=1
@@ -1111,33 +1111,33 @@ if __name__ == '__main__':
     #+6
 
     ##################### Placement #############################################
-    tag_pos1,tag_pos2,tag_pos3,tag_pos4=[[532.106079, 254.881577, np.float64(301.0), 179.277348, -16.112719, 0.037987], [165.392349, 265.937164, np.float64(307.8888888888889), 179.995895, -1.208769, -0.001261], [374.411255, 259.975708, np.float64(316.0), 128.68592, -125.856654, -0.134645], [348.685303, -57.440121, np.float64(298.0), 126.413168, 128.139318, 0.138541]]
-    rotation1,rotation2,rotation3,rotation4=[np.float32(100.24786), np.float32(90.791336), np.float32(178.71106), np.float32(359.22992)]
-    # # tag_pos_fat1,dir_move1=calculate_approach_vector(tag_pos1,(rotation1+90)%360)
+    tag_pos1,tag_pos2,tag_pos3,tag_pos4=[[530.021362, 255.684128, np.float64(303.0), 179.542857, -12.819759, 0.032429], [126.088715, 276.547363, np.float64(309.0), 179.996296, -1.154109, -0.002578], [368.536407, 260.80661, np.float64(308.0), 127.996079, 126.558184, 0.15149], [356.694275, 11.392265, np.float64(298.0), 124.666392, 129.839341, 0.140661]]
+    rotation1,rotation2,rotation3,rotation4=[np.float32(98.15264), np.float32(90.789154), np.float32(0.60469055), np.float32(357.67847)]
+    tag_pos_fat1,dir_move1=calculate_approach_vector(tag_pos1,rotation1)
     tag_pos_fat2,dir_move2=calculate_approach_vector(tag_pos2,rotation2)
-    # # tag_pos_fat3,dir_move3=calculate_approach_vector(tag_pos3,(rotation3+90)%360)
-    # tag_pos_fat4,dir_move4=calculate_approach_vector(tag_pos4,(rotation4+90)%360)
+    tag_pos_fat3,dir_move3=calculate_approach_vector(tag_pos3,rotation3)
+    tag_pos_fat4,dir_move4=calculate_approach_vector(tag_pos4,rotation4)
     
     # pos,rptatopn=pickup_element_with_tag(cams,8)
     # drop_element_at_position(arm,tag_pos1[:2]+[pos[2]]+tag_pos1[3:])
     # pos,rptatopn=pickup_element_with_tag(cams,10)
     # drop_element_at_position(arm,tag_pos3[:2]+[pos[2]]+tag_pos3[3:])
-    # pos,rptatopn=pickup_element_with_tag(cams,9)
-    # drop_element_at_position(arm,tag_pos2[:2]+[pos[2]]+tag_pos2[3:])
+    pos,rptatopn=pickup_element_with_tag(cams,9)
+    drop_element_at_position(arm,tag_pos2[:2]+[pos[2]]+tag_pos2[3:])
 
 
     fat_position,rotation=pickup_element_with_tag(cams,1,0.038,True)
     move_to(arm,tag_pos_fat2)
-    # code,place=arm.get_position_aa(is_radian=False)
-    # # rotate_motor_async(board)
-    # move_along_vector(arm,place,dir_move2)
-    # time.sleep(3)
-    # # rotate_motor_async(board)
-    # code,place=arm.get_position_aa(is_radian=False)
-    # move_along_vector(arm,place,-dir_move2)
-    # code,pos=arm.get_position_aa(is_radian=False)
-    # code = arm.set_position_aa(pos[:2]+[450]+pos[3:], speed=40,mvacc=40, wait=True)
-    # gohome()
-    # drop_element_at_position(arm,fat_position)
+    code,place=arm.get_position_aa(is_radian=False)
+    # # # rotate_motor_async(board)
+    move_along_vector(arm,place,dir_move2)
+    # # time.sleep(3)
+    # # # rotate_motor_async(board)
+    code,place=arm.get_position_aa(is_radian=False)
+    move_along_vector(arm,place,-dir_move2)
+    code,pos=arm.get_position_aa(is_radian=False)
+    code = arm.set_position_aa(pos[:2]+[450]+pos[3:], speed=40,mvacc=40, wait=True)
+    gohome()
+    drop_element_at_position(arm,fat_position)
     ############################################################################
     board.exit()
