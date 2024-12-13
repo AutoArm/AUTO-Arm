@@ -430,7 +430,7 @@ def fine_adjust(arm,pipeline,target_id):
     print(depth_value,"depth")
     rotation_angle = calculate_rotation_angle(corners)
     rotation_angle+=90
-    code = arm.set_position_aa([place[0]+70]+[place[1]+36]+place[2:], speed=50,mvacc=100, wait=True)
+    code = arm.set_position_aa([place[0]+71.5]+[place[1]+35]+place[2:], speed=50,mvacc=100, wait=True)
     code,pos = arm.get_servo_angle(servo_id=7,is_radian=False)
     code = arm.set_servo_angle(servo_id=7,wait=True,angle=pos+rotation_angle,is_radian=False)
 
@@ -775,7 +775,7 @@ def find_position_of_tag(cams,tag_id,size=0.062):
             place,rotation=find_pos(arm,mem,pipeline,tag_id)
             # gohome()
             # print("Place found: ",place)
-            return place[:2]+[place[2]+6]+place[3:],rotation
+            return place[:2]+[place[2]+5]+place[3:],rotation
 
 
         if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -1048,7 +1048,7 @@ def calculate_approach_vector(coor,rotation):
         Delx=-1.2+0.01*(180-rotation)
     elif rotation>90:
         add_z=0.9
-        Delx=2.6-0.06*(rotation)
+        Delx=2.2
     # elif rotation<260:
     #     add_z=3.2
     #     Delx=1
@@ -1111,19 +1111,21 @@ if __name__ == '__main__':
     #+6
 
     ##################### Placement #############################################
-    tag_pos1,tag_pos2,tag_pos3,tag_pos4=[[530.021362, 255.684128, np.float64(303.0), 179.542857, -12.819759, 0.032429], [126.088715, 276.547363, np.float64(309.0), 179.996296, -1.154109, -0.002578], [368.536407, 260.80661, np.float64(308.0), 127.996079, 126.558184, 0.15149], [356.694275, 11.392265, np.float64(298.0), 124.666392, 129.839341, 0.140661]]
+    tag_pos1,tag_pos2,tag_pos3,tag_pos4=[[530.021362, 255.684128, np.float64(300.0), 179.542857, -12.819759, 0.032429], [126.088715, 276.547363, np.float64(308.0), 179.996296, -1.154109, -0.002578], [368.536407, 260.80661, np.float64(305.0), 127.996079, 126.558184, 0.15149], [356.694275, 11.392265, np.float64(297.0), 124.666392, 129.839341, 0.140661]]
     rotation1,rotation2,rotation3,rotation4=[np.float32(98.15264), np.float32(90.789154), np.float32(0.60469055), np.float32(357.67847)]
     tag_pos_fat1,dir_move1=calculate_approach_vector(tag_pos1,rotation1)
     tag_pos_fat2,dir_move2=calculate_approach_vector(tag_pos2,rotation2)
     tag_pos_fat3,dir_move3=calculate_approach_vector(tag_pos3,rotation3)
     tag_pos_fat4,dir_move4=calculate_approach_vector(tag_pos4,rotation4)
     
-    # pos,rptatopn=pickup_element_with_tag(cams,8)
-    # drop_element_at_position(arm,tag_pos1[:2]+[pos[2]]+tag_pos1[3:])
-    # pos,rptatopn=pickup_element_with_tag(cams,10)
-    # drop_element_at_position(arm,tag_pos3[:2]+[pos[2]]+tag_pos3[3:])
+    pos,rptatopn=pickup_element_with_tag(cams,8)
+    drop_element_at_position(arm,tag_pos1[:2]+[pos[2]]+tag_pos1[3:])
+    pos,rptatopn=pickup_element_with_tag(cams,10)
+    drop_element_at_position(arm,tag_pos3[:2]+[pos[2]]+tag_pos3[3:])
     pos,rptatopn=pickup_element_with_tag(cams,9)
     drop_element_at_position(arm,tag_pos2[:2]+[pos[2]]+tag_pos2[3:])
+    pos,rptatopn=pickup_element_with_tag(cams,11)
+    drop_element_at_position(arm,tag_pos4[:2]+[pos[2]]+tag_pos4[3:])
 
 
     fat_position,rotation=pickup_element_with_tag(cams,1,0.038,True)
