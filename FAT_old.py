@@ -244,7 +244,7 @@ def pickup_claw(arm,coor,pipeline,target_id,special=False):
     pickup_pos=place[:2]+[height]+place[3:]
     code = arm.set_position_aa(place[:2]+[height]+place[3:], speed=speeds,mvacc=100, wait=True)
     if special:
-        arm.set_gripper_position(390,wait=True) 
+        arm.set_gripper_position(300,wait=True) 
     else:
         arm.set_gripper_position(630,wait=True) 
 
@@ -420,7 +420,7 @@ def fine_adjust(arm,pipeline,target_id):
     print(depth_value,"depth")
     rotation_angle = calculate_rotation_angle(corners)
     rotation_angle+=90
-    code = arm.set_position_aa([place[0]+72.2]+[place[1]+36]+place[2:], speed=50,mvacc=100, wait=True)
+    code = arm.set_position_aa([place[0]+72.2]+[place[1]+33.5]+place[2:], speed=50,mvacc=100, wait=True)
     code,pos = arm.get_servo_angle(servo_id=7,is_radian=False)
     code = arm.set_servo_angle(servo_id=7,wait=True,angle=pos+rotation_angle,is_radian=False)
 
@@ -1028,11 +1028,12 @@ def calculate_approach_vector(coor,rotation):
     add_z=0
     Delx=0
     print(rotation,"rotation in approach")
-    add_z=-0.2+0.02*rotation
-    Delx=1.7+0.01*rotation
+    add_z=-0.3+0.02*rotation
+    Delx=1.8+0.01*rotation
     if rotation>280:
-        add_z=0.6
-        Delx=-1.2+0.01*(180-rotation)
+        print("hither changing")
+        add_z=-1.3
+        Delx=-0.2+0.01*(180-rotation)
     elif rotation>180:
         add_z=1
         Delx=-1.2+0.01*(180-rotation)
@@ -1053,7 +1054,7 @@ def calculate_approach_vector(coor,rotation):
     dir_move= np.concatenate([y_uv, np.zeros(4)])
     return tag_pos_fat,dir_move
 
-def move_along_vector(arm, start_pose, direction, distance=17):
+def move_along_vector(arm, start_pose, direction, distance=41):
     """
     Move the robot arm along a vector in steps.
 
@@ -1100,56 +1101,72 @@ if __name__ == '__main__':
     
     # print(rotate_coordinate_plane((rotation+90)%360))
     
-    for i in range(5):
-        tag_pos,rotation=find_position_of_tag(cams,11)
-        tag_pos_fat,dir_move=calculate_approach_vector(tag_pos,(rotation+90)%360)
-        # print(dir_move)
-        # print("rotation",(rotation+90)%360)
-        fat_position,rotation=pickup_element_with_tag(cams,1,0.038,True)
-        
-        # FAT(cams,11)
-        move_to(arm,tag_pos_fat)
-        code,place=arm.get_position_aa(is_radian=False)
+    # for i in range(5):
+    tag_pos,rotation=find_position_of_tag(cams,11)
+    tag_pos_fat,dir_move=calculate_approach_vector(tag_pos,(rotation+90)%360)
+    print((rotation+90)%360,"rptatopmmmmmmm")
+    # print(dir_move)
+    # print("rotation",(rotation+90)%360)
+    fat_position,rotation=pickup_element_with_tag(cams,1,0.038,True)
+    
+    # FAT(cams,11)
+    move_to(arm,tag_pos_fat)
+    code,place=arm.get_position_aa(is_radian=False)
 
-        # code = arm.set_position_aa([place[0]-2]+[place[1]]+[place[2]-130]+place[3:], speed=50,mvacc=100, wait=True)
+    # code = arm.set_position_aa([place[0]-2]+[place[1]]+[place[2]-130]+place[3:], speed=50,mvacc=100, wait=True)
 
-        # # code,place=arm.get_position_aa(is_radian=False)
-        # # leave=False
-        # # depth_image=None
-        # # corners=None
-        # # while not leave:
-        # #     frames = pipeline.wait_for_frames()
-        # #     depth_frame = frames.get_depth_frame()
-        # #     depth_image = np.asanyarray(depth_frame.get_data())
-        # #     color_frame = frames.get_color_frame()
-        # #     color_image = np.asanyarray(color_frame.get_data())
-        rotate_motor_async(board)
-        # code = arm.set_position_aa([place[0]]+[place[1]+13.8]+[place[2]]+place[3:], speed=2,mvacc=20, wait=True)
-        move_along_vector(arm,place,dir_move)
-        # print("Testing motor rotation...")
-        time.sleep(3)
-        rotate_motor_async(board)
-        # # Test rotation in one direction
-        # # print("Rotating in one direction (1/4 turn)...")
-        # # rotate_motor(2, True, board,0,3600000)
-        # # time.sleep(1)
+    # # code,place=arm.get_position_aa(is_radian=False)
+    # # leave=False
+    # # depth_image=None
+    # # corners=None
+    # # while not leave:
+    # #     frames = pipeline.wait_for_frames()
+    # #     depth_frame = frames.get_depth_frame()
+    # #     depth_image = np.asanyarray(depth_frame.get_data())
+    # #     color_frame = frames.get_color_frame()
+    # #     color_image = np.asanyarray(color_frame.get_data())
 
-        # # print("Rotating in one direction (1/4 turn)...")
-        # # rotate_motor(2, False, board,1,3600000)
-        # # time.sleep(1)
 
-        # # print("Rotating in one direction (1/4 turn)...")
-        # # rotate_motor(2, False, board,2,3600000)
-        # # time.sleep(1)
-        
-        
-        # # print("Motor test completed")
-        
-        code,place=arm.get_position_aa(is_radian=False)
 
-        move_along_vector(arm,place,-dir_move)
-        code,pos=arm.get_position_aa(is_radian=False)
-        code = arm.set_position_aa(pos[:2]+[450]+pos[3:], speed=40,mvacc=40, wait=True)
-        gohome()
-        drop_element_at_position(arm,fat_position)
+    # rotate_motor_async(board)
+
+
+
+    # code = arm.set_position_aa([place[0]]+[place[1]+13.8]+[place[2]]+place[3:], speed=2,mvacc=20, wait=True)
+    move_along_vector(arm,place,dir_move)
+    # print("Testing motor rotation...")
+    time.sleep(3)
+
+
+
+    
+    # rotate_motor_async(board)
+
+
+
+
+
+    # # Test rotation in one direction
+    # # print("Rotating in one direction (1/4 turn)...")
+    # # rotate_motor(2, True, board,0,3600000)
+    # # time.sleep(1)
+
+    # # print("Rotating in one direction (1/4 turn)...")
+    # # rotate_motor(2, False, board,1,3600000)
+    # # time.sleep(1)
+
+    # # print("Rotating in one direction (1/4 turn)...")
+    # # rotate_motor(2, False, board,2,3600000)
+    # # time.sleep(1)
+    
+    
+    # # print("Motor test completed")
+    
+    code,place=arm.get_position_aa(is_radian=False)
+
+    move_along_vector(arm,place,-dir_move)
+    code,pos=arm.get_position_aa(is_radian=False)
+    code = arm.set_position_aa(pos[:2]+[450]+pos[3:], speed=40,mvacc=40, wait=True)
+    gohome()
+    drop_element_at_position(arm,fat_position[:2]+[fat_position[2]+1]+fat_position[3:])
     board.exit()

@@ -370,50 +370,62 @@ def rotate_phi(plane, phi, radius=200):
         is_radian=False
     )
 
-def rotate_phi(plane, phi, radius=200):
+from scipy.spatial.transform import Rotation
+def rotate_phi(axis, phi, radius=200):
     """
-    Rotates the robot arm around the plane normal vector by phi degrees
-    while maintaining the end effector's absolute position in space.
+    Rotates the robot arm around an arbitrary axis vector by phi degrees,
+    maintaining the laser contact point while rotating the end effector.
     
     Args:
-        plane (list/array): Vector normal to the plane [x, y, z]
-        phi (float): Rotation angle about the plane normal (degrees)
+        axis (np.array): Axis to rotate around (e.g. [0,-1,0] for lens normal)
+        phi (float): Rotation angle in degrees
         radius (float): Distance from base position to end effector
     """
-    # Normalize plane vector
-    plane = np.array(plane, dtype=float)
-    plane = normalize(plane)
-    
     # Get current position
     position = arm.get_position()
     x, y, z, curr_roll, curr_pitch, curr_yaw = position[1]
+    curr_pos = np.array([x, y, z])
     
     # Get current end effector direction
     curr_end_effector = get_end_effector_direction(curr_roll, curr_pitch, curr_yaw)
     
-    # Calculate current end point in space
-    curr_end_point = np.array([x, y, z]) + curr_end_effector * radius
+    # Normalize vectors
+    axis = normalize(np.array(axis))
+    curr_end_effector = normalize(curr_end_effector)
     
-    # Create rotation object for rotation around plane vector
-    rot = R.from_rotvec(phi * np.pi/180 * plane)
+    # Calculate current end point (where laser hits lens)
+    curr_end_point = curr_pos + curr_end_effector * radius
     
-    # Apply rotation to current end effector direction
-    new_end_effector = rot.apply(curr_end_effector)
+    # Convert angle to radians
+    phi_rad = np.radians(phi)
+    
+    # Rotate end effector direction using Rodrigues formula
+    cos_phi = np.cos(phi_rad)
+    sin_phi = np.sin(phi_rad)
+    
+    new_end_effector = (curr_end_effector * cos_phi + 
+                       np.cross(axis, curr_end_effector) * sin_phi + 
+                       axis * np.dot(axis, curr_end_effector) * (1 - cos_phi))
     new_end_effector = normalize(new_end_effector)
+
+
+    print(new_end_effector)
     
     # Calculate new base position to maintain end point
     new_base_pos = curr_end_point - new_end_effector * radius
     
     # Convert new direction to roll, pitch, yaw
-    new_roll, new_pitch, new_yaw = vector_to_euler(new_end_effector)
+    new_pitch = -np.arcsin(new_end_effector[2])
+    new_roll = np.arctan2(new_end_effector[1], new_end_effector[0])
+    new_yaw = 0  # We may need to adjust this
     
-    # Move to new position
+    # Set new position and orientation
     arm.set_position(
         x=new_base_pos[0],
         y=new_base_pos[1],
         z=new_base_pos[2],
-        roll=new_roll,
-        pitch=new_pitch,
+        roll=np.degrees(new_roll),
+        pitch=np.degrees(new_pitch),
         yaw=new_yaw,
         is_radian=False
     )
@@ -426,15 +438,9 @@ if __name__ == '__main__':
     new_plane = rotate(plane, 0) # update radius of face_shift if center moves
 
 
-    rotate_phi(new_plane,10)
+    # rotate_phi(new_plane,0)
 
 
-
-
-
-
-
-    
 
 
     #arm.set_position(x=x, y = y, z = z, roll=roll, pitch=pitch, yaw=yaw, is_radian = False)
