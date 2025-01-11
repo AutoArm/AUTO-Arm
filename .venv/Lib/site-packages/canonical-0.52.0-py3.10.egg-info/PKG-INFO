@@ -1,0 +1,29 @@
+Metadata-Version: 2.1
+Name: canonical
+Version: 0.52.0
+Summary: Common models and types for business applications
+Home-page: https://gitlab.com/unimatrixone
+Author: Cochise Ruhulessin
+Author-email: cochise.ruhulessin@unimatrixone.io
+Classifier: Development Status :: 4 - Beta
+Classifier: Environment :: Console
+Classifier: Environment :: Web Environment
+Classifier: Intended Audience :: Developers
+Classifier: License :: Other/Proprietary License
+Classifier: Operating System :: POSIX
+Classifier: Operating System :: POSIX :: Linux
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3 :: Only
+Classifier: Topic :: Internet
+Classifier: Topic :: Office/Business
+Classifier: Topic :: Software Development :: Libraries
+Description-Content-Type: text/markdown
+Provides-Extra: all
+Provides-Extra: iso3166
+
+# Python Canonical Datamodel Library
+
+The `canonical` namespace contains sub-packages that define commonly used
+datastructures, for example as defined in a Request for Comments (RFC). Each
+model is implemented using `pydantic`.

@@ -432,10 +432,10 @@ if __name__ == '__main__':
     parameters = cv2.aruco.DetectorParameters()
 
     # Main loop for real-time detection
-    cap1 = cv2.VideoCapture(1, cv2.CAP_MSMF)
+    cap1 = cv2.VideoCapture(0, cv2.CAP_MSMF)
     cap1.set(cv2.CAP_PROP_FRAME_WIDTH, 3840)
     cap1.set(cv2.CAP_PROP_FRAME_HEIGHT, 2160)
-    cap2 = cv2.VideoCapture(2, cv2.CAP_MSMF)
+    cap2 = cv2.VideoCapture(1, cv2.CAP_MSMF)
     cap2.set(cv2.CAP_PROP_FRAME_WIDTH, 3840)
     cap2.set(cv2.CAP_PROP_FRAME_HEIGHT, 2160)
 
@@ -450,8 +450,27 @@ if __name__ == '__main__':
         ret1, frame1 = cap1.read()
         ret2, frame2 = cap2.read()
 
-        if not ret1 or not ret2:
-            print("Error: Could not read frame from one or both cameras.")
+        """ TEST """        
+        # Convert frames to grayscale
+        gray1 = cv2.cvtColor(frame1, cv2.COLOR_BGR2GRAY)
+        gray2 = cv2.cvtColor(frame2, cv2.COLOR_BGR2GRAY)
+
+        # Display the grayscale images
+        cv2.imshow('Camera 1 - Grayscale', gray1)
+        cv2.imshow('Camera 2 - Grayscale', gray2)
+
+        """ TEST """   
+
+        broke = False
+        if not ret1:
+            print("Error: First camera not working")
+            broke = True
+
+        if not ret2:
+            print("Error: Second camera not working")
+            broke = True
+        
+        if broke:
             break
 
         corners1, id1 = detect_aruco(frame1, target_id)
@@ -494,6 +513,7 @@ if __name__ == '__main__':
         # cv2.resizeWindow('Camera 2', 3840, 2160)
         # cv2.imshow('Camera 2', frame2)
 
+        break
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
 

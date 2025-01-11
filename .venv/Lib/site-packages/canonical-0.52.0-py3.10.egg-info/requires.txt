@@ -1,0 +1,13 @@
+ckms>=0.63.0
+inflect>=6.0.2
+iso3166
+pydantic
+email-validator
+phonenumbers
+pytz
+
+[all]
+iso3166>=2.1.1
+
+[iso3166]
+iso3166>=2.1.1
