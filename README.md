@@ -28,7 +28,7 @@
    - [FAT_old.py](https://github.com/AutoArm/AUTO-Arm/blob/in_lab/Experiments/FAT_old.py): Demo version of the FAT used for our final demo (Author: [Shrish](https://github.com/ShrishChou))
    - [Measurement_pipeline.py](https://github.com/AutoArm/AUTO-Arm/blob/in_lab/Experiments/Measurement_pipeline.py): Code for finding the ports where the cameras are located. Change port values based on availability (varies per machine) (Author: [Shrish](https://github.com/ShrishChou))
    - [axis_rotation.py](https://github.com/AutoArm/AUTO-Arm/blob/in_lab/Experiments/axis_rotation.py): Rotate the arm around an axis (Author: )
-   - [beam_alignment.py](https://github.com/AutoArm/AUTO-Arm/blob/in_lab/Experiments/beam_alignment.py): Given the general area where the laser is, the robot uses the camera to center the robot and moves back. Used in our paper for finding beam parameters (Author: [Shrish](https://github.com/ShrishChou))
+   - [beam_alignment.py](https://github.com/AutoArm/AUTO-Arm/blob/in_lab/Experiments/beam_aligment.py): Given the general area where the laser is, the robot uses the camera to center the robot and moves back. Used in our paper for finding beam parameters (Author: [Shrish](https://github.com/ShrishChou))
    - [interferometer.py](https://github.com/AutoArm/AUTO-Arm/blob/in_lab/Experiments/interferometer.py): Paper work for the creation of the interferometer (Author: [Shrish](https://github.com/ShrishChou))
    - [rotate gripper 12-12.py](https://github.com/AutoArm/AUTO-Arm/blob/in_lab/Experiments/rotate%20gripper%2012-12.py): (Author: )
    - [video_demo.py](https://github.com/AutoArm/AUTO-Arm/blob/in_lab/Experiments/video_demo.py): First Interferometer setup video demo code (Author: [Shrish](https://github.com/ShrishChou))
@@ -37,8 +37,8 @@
    - All extra files for different tests
 
 - Testing
-   - [alignment.py](https://github.com/ShrishChou/AUTO-Arm/blob/in_lab/Testing/alignment.py): Testing the capabilities of the robot and try to check the repeatability and precision of the dropping (Author: [Shrish](https://github.com/ShrishChou))
-   - [alignment_with_drop.py](https://github.com/ShrishChou/AUTO-Arm/blob/in_lab/Testing/alignment_with_drop.py): Code to do the testing of the abilities of the robot but this time with the dropping (Author: [Shrish](https://github.com/ShrishChou))
+   - [alignment.py](https://github.com/ShrishChou/AUTO-Arm/blob/in_lab/Testing/alginment.py): Testing the capabilities of the robot and try to check the repeatability and precision of the dropping (Author: [Shrish](https://github.com/ShrishChou))
+   - [aligment_with_drop.py](https://github.com/ShrishChou/AUTO-Arm/blob/in_lab/Testing/aligment_with_drop.py): Code to do the testing of the abilities of the robot but this time with the dropping (Author: [Shrish](https://github.com/ShrishChou))
    - [fine_adjustment.py](https://github.com/ShrishChou/AUTO-Arm/blob/in_lab/Testing/fine_adjustment.py): Code for the implementation of the Lidar camera (Author: [Shrish](https://github.com/ShrishChou))
    - [fulladjustment.py](https://github.com/ShrishChou/AUTO-Arm/blob/in_lab/Testing/fulladjustment.py): Code for the implementation of the complete CV system (Author: [Shrish](https://github.com/ShrishChou))
    - [internaltest.py](https://github.com/ShrishChou/AUTO-Arm/blob/in_lab/Testing/internaltest.py): Code to check if the detection system is working (Author: [Shrish](https://github.com/ShrishChou))
