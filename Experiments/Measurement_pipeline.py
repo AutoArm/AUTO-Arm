@@ -7,14 +7,13 @@
 # Author: Vinman <vinman.wen@ufactory.cc> <vinman.cub@gmail.com>
 
 """
-# Notice
-#   1. Changes to this file on Studio will not be preserved
-#   2. The next conversion will overwrite the file with the same name
-# 
-# xArm-Python-SDK: https://github.com/xArm-Developer/xArm-Python-SDK
-#   1. git clone git@github.com:xArm-Developer/xArm-Python-SDK.git
-#   2. cd xArm-Python-SDK
-#   3. python setup.py install
+Date: Summer 2024
+Description: The complete pipeline for getting the readings
+    1. find laser
+    2. place lens
+    3. pickup element
+    4. move back and take readings
+    5. return element to original position
 """
 import sys
 import math

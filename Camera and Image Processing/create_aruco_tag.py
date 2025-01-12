@@ -1,6 +1,9 @@
 import cv2
 import numpy as np
-
+'''
+Date: Summer 2024
+Description: Code to create Aruco Tag with ID and size 
+'''
 # Define the dictionary
 aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
 

@@ -7,14 +7,8 @@
 # Author: Vinman <vinman.wen@ufactory.cc> <vinman.cub@gmail.com>
 
 """
-# Notice
-#   1. Changes to this file on Studio will not be preserved
-#   2. The next conversion will overwrite the file with the same name
-# 
-# xArm-Python-SDK: https://github.com/xArm-Developer/xArm-Python-SDK
-#   1. git clone git@github.com:xArm-Developer/xArm-Python-SDK.git
-#   2. cd xArm-Python-SDK
-#   3. python setup.py install
+# Summer 2024
+Description: Code to do the testing of the abilities of the robot but this time with the dropping
 """
 import sys
 import math
@@ -397,20 +391,17 @@ def fine_adjust(arm,pipeline):
 
 if __name__ == '__main__':
     print(cv2.__version__)
-    # Load calibration data
-    # temp=arm.get_position(is_radian=False)
-    # print(temp, " is base")
-
+    # Set positions
     highdrop=[6.759449, 324.608215, 400.279938, 179.688159, 1.214785, -0.9687]
     lowdrop=[6.759449, 324.608215, 259.6, 179.688159, 1.214785, -0.9687]
-    # start()
     cap2 = cv2.VideoCapture(1)
-
-    
+    # Drop and open claw 
     code = arm.set_position_aa(lowdrop,is_radian=False, speed=10,  mvacc=100, wait=True)
     arm.set_gripper_enable(True)
     code = arm.set_gripper_speed(400)
     arm.set_gripper_position(850,wait=True) 
+    # for seeing
+    
     # while True:
     #     ret2, frame2 = cap2.read()
     #     cv2.imshow("Camera",frame2)     

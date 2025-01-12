@@ -1,6 +1,9 @@
 import cv2
 import numpy as np
-
+'''
+Date: Summer 2024
+Description: Code to check if the detection system is working
+'''
 # Open the video capture
 cap1 = cv2.VideoCapture(0, cv2.CAP_MSMF)
 

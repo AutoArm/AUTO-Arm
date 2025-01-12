@@ -7,14 +7,13 @@
 # Author: Vinman <vinman.wen@ufactory.cc> <vinman.cub@gmail.com>
 
 """
-# Notice
-#   1. Changes to this file on Studio will not be preserved
-#   2. The next conversion will overwrite the file with the same name
-# 
-# xArm-Python-SDK: https://github.com/xArm-Developer/xArm-Python-SDK
-#   1. git clone git@github.com:xArm-Developer/xArm-Python-SDK.git
-#   2. cd xArm-Python-SDK
-#   3. python setup.py install
+# Description
+Date: Summer 2024
+This code was made for testing the capabilities of the robot and try to 
+    check the repeatability and precision of the dropping
+
+
+
 """
 import sys
 import math
@@ -397,20 +396,14 @@ def fine_adjust(arm,pipeline):
 
 if __name__ == '__main__':
     print(cv2.__version__)
-    # Load calibration data
-    # temp=arm.get_position(is_radian=False)
-    # print(temp, " is base")
-
+    # positions to interpolate between
     highdrop=[6.759449, 324.608215, 400.279938, 179.688159, 1.214785, -0.9687]
     lowdrop=[6.759449, 324.608215, 259.6, 179.688159, 1.214785, -0.9687]
-    # start()
     cap2 = cv2.VideoCapture(1)
 
+    # Code to do the first session to establish the base images
     arm.set_gripper_enable(True)
-    # code = arm.set_gripper_speed(2000)
-    # code = arm.set_position_aa(highdrop,is_radian=False, speed=50,  mvacc=100, wait=True)
     code = arm.set_position_aa(lowdrop,is_radian=False, speed=10,  mvacc=100, wait=True)
-    # code = arm.set_position_aa(highdrop,is_radian=False, speed=50,  mvacc=100, wait=True)
     rightcount=0
     print("calib image take in 4 seconds")
     time.sleep(4)
@@ -424,6 +417,8 @@ if __name__ == '__main__':
         cv2.waitKey(1000)
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
+
+    # Code for the actual testing images
     rightcount=0
     print("ready for pictures")
     time.sleep(5)
@@ -442,10 +437,8 @@ if __name__ == '__main__':
         cv2.imwrite(filename1, frame2) 
         rightcount+=1
         cv2.imshow('Camera', frame2)
-        
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
-
 
     cap2.release()
     cv2.destroyAllWindows()

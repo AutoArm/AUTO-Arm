@@ -5,7 +5,10 @@ import time
 import os
 import pyfirmata
 import time
-
+'''
+Date: Fall 2024
+Description: Figuring out resolution issues with camera
+'''
 
 def capture_averaged_image(cap, n_avg):
     frames = []

@@ -3,7 +3,10 @@ import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from PIL import Image
-
+'''
+Date: Fall 2024
+Description: Code for the processing of data
+'''
 class Processing:
     def __init__(self):
         """

@@ -7,14 +7,10 @@
 # Author: Vinman <vinman.wen@ufactory.cc> <vinman.cub@gmail.com>
 
 """
-# Notice
-#   1. Changes to this file on Studio will not be preserved
-#   2. The next conversion will overwrite the file with the same name
-# 
-# xArm-Python-SDK: https://github.com/xArm-Developer/xArm-Python-SDK
-#   1. git clone git@github.com:xArm-Developer/xArm-Python-SDK.git
-#   2. cd xArm-Python-SDK
-#   3. python setup.py install
+Date: Summer 2024
+Description: Given the general area where the laser is, the robot uses
+    the camera to center the robot and moves back.
+    Used in our paper for finding beam parameters
 """
 import sys
 import math

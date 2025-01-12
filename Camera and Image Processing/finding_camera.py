@@ -1,7 +1,10 @@
 import cv2
 import numpy as np
 import pyrealsense2 as rs
-
+'''
+Date: Fall 2024
+Description: Use code to find which cameras are on which ports
+'''
 # Test Camera 1 with MSMF
 print(cv2.__version__)
 

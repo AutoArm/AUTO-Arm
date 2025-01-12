@@ -7,14 +7,10 @@
 # Author: Vinman <vinman.wen@ufactory.cc> <vinman.cub@gmail.com>
 
 """
-# Notice
-#   1. Changes to this file on Studio will not be preserved
-#   2. The next conversion will overwrite the file with the same name
-# 
-# xArm-Python-SDK: https://github.com/xArm-Developer/xArm-Python-SDK
-#   1. git clone git@github.com:xArm-Developer/xArm-Python-SDK.git
-#   2. cd xArm-Python-SDK
-#   3. python setup.py install
+Date: Fall 2024
+Description: the different version of the FAT code that used an approach
+    based on changes to the overall computer vision
+    *** NOT USED IN DEMO STILL IN WORKINGS ***
 """
 import pyfirmata
 import sys
@@ -1127,7 +1123,7 @@ if __name__ == '__main__':
     
     # print(rotate_coordinate_plane((rotation+90)%360))
     # tag_pos,rotation=find_position_of_tag(cams,11)
-    fat_position,fat_rotation=pickup_element_with_tag(cams,tag_id=1,size=0.038,True)
+    fat_position,fat_rotation=pickup_element_with_tag(cams,tag_id=1,size=0.038)
 
     tag_pos,rotation=[453.270325, 27.657326, 297, 95.103202, 152.824517, 0.182659],243.63931
     print(tag_pos,rotation)
