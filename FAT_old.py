@@ -174,7 +174,7 @@ def move_to(arm,coor):
     else:
         quad=4
     height=coor[2]
-    highcoor=[coor[0]]+[coor[1]]+[500]+coor[3:]
+    highcoor=[coor[0]]+[coor[1]]+[400]+coor[3:]
     code = arm.set_servo_angle(servo_id=1,angle=new_angle,wait=True,is_radian=False,speed=speeds)
     code = arm.set_position_aa(highcoor, speed=speeds,mvacc=100, wait=True)
     code = arm.set_position_aa(coor, speed=speeds,mvacc=100, wait=True)

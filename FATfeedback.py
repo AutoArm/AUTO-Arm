@@ -174,7 +174,7 @@ def move_to(arm,coor):
     else:
         quad=4
     height=coor[2]
-    highcoor=[coor[0]]+[coor[1]]+[400]+coor[3:]
+    highcoor=[coor[0]]+[coor[1]]+[350]+coor[3:]
     code = arm.set_servo_angle(servo_id=1,angle=new_angle,wait=True,is_radian=False,speed=speeds)
     code = arm.set_position_aa(highcoor, speed=speeds,mvacc=100, wait=True)
     code = arm.set_position_aa(coor, speed=speeds,mvacc=100, wait=True)
@@ -226,14 +226,14 @@ def pickup_claw(arm,coor,pipeline,target_id,special=False):
     else:
         quad=4
 
-    highcoor=[coor[0]-70]+[coor[1]-35]+[400]+coor[3:]
+    highcoor=[coor[0]-70]+[coor[1]-35]+[350]+coor[3:]
     # print("here",highcoor)
     code = arm.set_servo_angle(servo_id=1,angle=new_angle,wait=True,is_radian=False,speed=speeds)
     code = arm.set_position_aa(highcoor, speed=speeds,mvacc=100, wait=True)
     height,rotation=fine_adjust(arm,pipeline,target_id)
     # print("after fine adjust")
     height=height-100
-    height=400-height
+    height=350-height
     if special:
         height+=29
     else:
@@ -494,13 +494,13 @@ def find_pos(arm,coor,pipeline,target_id):
     else:
         quad=4
 
-    highcoor=[coor[0]-70]+[coor[1]-35]+[400]+coor[3:]
+    highcoor=[coor[0]-70]+[coor[1]-35]+[350]+coor[3:]
     code = arm.set_servo_angle(servo_id=1,angle=new_angle,wait=True,is_radian=False,speed=speeds)
     code = arm.set_position_aa(highcoor, speed=speeds,mvacc=100, wait=True)
     height,rotation=fine_adjust(arm,pipeline,target_id)
     # print("after fine adjust")
     # height=height-100
-    height=400-height
+    height=350-height
     height=height+100
     print(height,"height of object")
     code,place=arm.get_position_aa(is_radian=False)
@@ -821,7 +821,7 @@ def offset_coor(boxes,coor):
     return [coor[0]]+[coor[1]-boxes*105]+coor[2:]
 def gohome():
     code,place=arm.get_position_aa(is_radian=False)
-    code = arm.set_position_aa(place[:2]+[500]+place[3:], speed=80,mvacc=100, wait=True)
+    code = arm.set_position_aa(place[:2]+[400]+place[3:], speed=80,mvacc=100, wait=True)
     code=arm.set_servo_angle(angle=[180,75,-180,20,0,90,-60],speed=60,is_radian=False,wait=True)
 def readings(cams,step_size,steps):
     cap1,cap2,cap3,pipeline=cams
@@ -1028,18 +1028,18 @@ def calculate_approach_vector(coor,rotation):
     add_z=0
     Delx=0
     print(rotation,"rotation in approach")
-    add_z=-0.3+0.02*rotation
-    Delx=1.8+0.01*rotation
-    if rotation>280:
-        print("hither changing")
-        add_z=-1.3
-        Delx=-0.2+0.01*(180-rotation)
-    elif rotation>180:
-        add_z=1
-        Delx=-1.2+0.01*(180-rotation)
-    elif rotation>90:
-        add_z=1.1
-        Delx=2.4-0.01*(rotation)
+    # add_z=-0.3+0.02*rotation
+    # Delx=1.8+0.01*rotation
+    # if rotation>280:
+    #     print("hither changing")
+    #     add_z=-1.3
+    #     Delx=-0.2+0.01*(180-rotation)
+    # elif rotation>180:
+    #     add_z=1
+    #     Delx=-1.2+0.01*(180-rotation)
+    # elif rotation>90:
+    #     add_z=1.1
+    #     Delx=2.4-0.01*(rotation)
     # elif rotation<260:
     #     add_z=3.2
     #     Delx=1
@@ -1049,12 +1049,13 @@ def calculate_approach_vector(coor,rotation):
     # print(x_uv*(Delx)+y_uv*(-113),"additive part")
     x,y=x_uv*(Delx)+y_uv*(-113)
     #-166.4
-    tag_pos_fat=[coor[0]+x]+[coor[1]+y]+[coor[2]-81.4+16+add_z]+coor[3:]
+    #-81.4+16
+    tag_pos_fat=[coor[0]+x]+[coor[1]+y]+[coor[2]-197+add_z]+coor[3:]
     # print(rotation)
     dir_move= np.concatenate([y_uv, np.zeros(4)])
     return tag_pos_fat,dir_move
 
-def move_along_vector(arm, start_pose, direction, distance=15):
+def move_along_vector(arm, start_pose, direction, distance=10):
     """
     Move the robot arm along a vector in steps.
 
@@ -1177,7 +1178,7 @@ def process_video_stream(cap):
     finally:
         # Clean up
         cv2.destroyAllWindows()
-def center_fat(frame):
+def center_fat(frame,rotation):
     # check_saturation(frame)
     result=detect_white_squares(frame)
     if result is not None:
@@ -1206,13 +1207,16 @@ def center_fat(frame):
                     (0, 255, 0), 
                     1)
         
-        movex=(1081-center_x)/110
-        movez=(448-center_y)/110
-        print("center found",center_x,center_y,"and move right ",movex,movez)
+        movex=(881-center_x)/110
+        movez=(235-center_y)/110
+        print("center found",center_x,center_y,"and move ",movex,movez)
         if abs(movez)<=1 and abs(movex)<=1:
             return 1
+        rotatex,rotatey=rotate_coordinate_plane(rotation)
+        basismovex=rotatex[0]*movex
+        basismovey=rotatex[1]*(movex)
         code,place=arm.get_position_aa(is_radian=False)
-        target_move=[place[0]+movex/10]+[place[1]]+[place[2]+movez]+place[3:]
+        target_move=[place[0]+basismovex/10]+[place[1]+basismovey/10]+[place[2]+movez]+place[3:]
         
         code = arm.set_position_aa(target_move, speed=20,mvacc=100, wait=True)
         return 0
@@ -1221,7 +1225,9 @@ def center_fat(frame):
     return None
     # Show the frame
             
-def move_along_vector_feedback(fatcam,arm,place,dir_move1,distance=10):
+def move_along_vector_feedback(fatcam,arm,place,dir_move1,rotation,distance=10):
+
+
     """
     Move the robot arm along a vector in steps.
 
@@ -1236,7 +1242,7 @@ def move_along_vector_feedback(fatcam,arm,place,dir_move1,distance=10):
     center=None
     while current_steps<distance:
         ret1, frame1 = fatcam.read()
-        frame1=frame1[500:1500,700:2800]
+        frame1=frame1[700:1300,900:2600]
         if not ret1:
             print("Failed to grab frame")
             break
@@ -1245,7 +1251,7 @@ def move_along_vector_feedback(fatcam,arm,place,dir_move1,distance=10):
         display_frame = frame1.copy()
         
         # Process frame with center_fat
-        centered = center_fat(display_frame)
+        centered = center_fat(display_frame,rotation)
         
         # Show the processed frame
         cv2.imshow('Camera Feed', display_frame)
@@ -1293,7 +1299,7 @@ if __name__ == '__main__':
     move_along_vector(arm,place,dir_move1)
     code,place=arm.get_position_aa(is_radian=False)
     # center_fat(arm,fatcam)
-    move_along_vector_feedback(fatcam,arm,place,dir_move1)
+    move_along_vector_feedback(fatcam,arm,place,dir_move1,rotation1)
 
     # move_along_vector(arm,place,dir_move4)
     # # # time.sleep(3)

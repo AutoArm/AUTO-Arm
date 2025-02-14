@@ -1163,7 +1163,7 @@ if __name__ == '__main__':
     dirm_pin1 = 2  # Connect to DIR- on DM542T 2/5
     ena_pin1 = None # Connect to ENA+ on DM542T (optional, set to None if not used)
 
-    fatcam = cv2.VideoCapture(5, cv2.CAP_MSMF)
+    fatcam = cv2.VideoCapture(3, cv2.CAP_MSMF)
     fatcam.set(cv2.CAP_PROP_FRAME_WIDTH, 3840)
     fatcam.set(cv2.CAP_PROP_FRAME_HEIGHT, 2160)
     process_video_stream(fatcam)
