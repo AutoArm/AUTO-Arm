@@ -1042,7 +1042,7 @@ def calculate_approach_vector(coor,rotation):
     dir_move= np.concatenate([y_uv, np.zeros(4)])
     return tag_pos_fat,dir_move
 
-def move_along_vector(arm, start_pose, direction, distance=17):
+def move_along_vector_feedback(cap):
     """
     Move the robot arm along a vector in steps.
 
@@ -1055,14 +1055,106 @@ def move_along_vector(arm, start_pose, direction, distance=17):
     """
     # Normalize the vector for stepwise movement
     # print(distance*direction)
-    next_pose=start_pose+distance*direction
-    arm.set_position_aa(
-            next_pose,
-            speed=10,
-            mvacc=20,
-            wait=True
-        )
+    for i in range(4):
+        print(process_video_stream(cap))
+        time.sleep(10)
+def detect_white_squares(frame, min_size=10, max_size=1000, threshold=130):
+    """
+    Detect largest white square in a frame and return its center point and area.
     
+    Args:
+        frame: Current frame from video stream
+        min_size (int): Minimum side length of squares to detect
+        max_size (int): Maximum side length of squares to detect
+        threshold (int): Threshold for white color detection (0-255)
+    
+    Returns:
+        tuple: ((center_x, center_y), area) of largest square, or None if no squares found
+    """
+    # Convert to grayscale
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    
+    # Threshold the image to get white regions
+    _, binary = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY)
+    
+    # Find contours
+    contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    largest_square = None
+    largest_area = 0
+    
+    for contour in contours:
+        # Get the bounding rectangle
+        x, y, w, h = cv2.boundingRect(contour)
+        
+        # Check if the contour is approximately square
+        aspect_ratio = float(w)/h
+        if 0.9 <= aspect_ratio <= 1.1:  # Allow for some deviation from perfect square
+            
+            # Check if the size is within our target range
+            if min_size <= w <= max_size and min_size <= h <= max_size:
+                
+                # Verify that the region is consistently white
+                roi = gray[y:y+h, x:x+w]
+                if np.mean(roi) > threshold:
+                    area = w * h
+                    if area > largest_area:
+                        largest_area = area
+                        center_x = x + w/2
+                        center_y = y + h/2
+                        largest_square = ((center_x, center_y), area)
+    
+    return largest_square
+def process_video_stream(cap):
+    """
+    Process webcam stream and detect white squares in real-time.
+    Press 'q' to quit.
+    """
+    # if not cap.isOpened():
+    #     raise ValueError("Could not open video stream")
+    
+    while True:
+        # Read frame
+        ret, frame = cap.read()
+        if not ret:
+            print("Failed to grab frame")
+            break
+        frame=frame[500:1500,700:2800]
+        # Detect squares
+        result = detect_white_squares(frame)
+        
+        if result is not None:
+            (center, area) = result
+            print(center)
+            center_x, center_y = center
+            # Calculate the side length from area
+            side_length = int(math.sqrt(area))
+            # Calculate top-left corner from center point
+            x = int(center_x - side_length/2)
+            y = int(center_y - side_length/2)
+            
+            # Draw rectangle around detected square
+            cv2.rectangle(frame, 
+                        (x, y), 
+                        (x + side_length, y + side_length), 
+                        (0, 255, 0), 
+                        2)
+            
+            # Display coordinates (using center coordinates)
+            cv2.putText(frame, 
+                        f'({int(center_x)},{int(center_y)})', 
+                        (x, y-5),
+                        cv2.FONT_HERSHEY_SIMPLEX, 
+                        0.5, 
+                        (0, 255, 0), 
+                        1)
+        # Show the frame
+        cv2.imshow('White Square Detector', frame)
+        
+        # Break loop on 'q' press
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+            
 
 if __name__ == '__main__':
     board = pyfirmata.Arduino('COM5')  # Adjust this to your Arduino's port
@@ -1071,11 +1163,10 @@ if __name__ == '__main__':
     dirm_pin1 = 2  # Connect to DIR- on DM542T 2/5
     ena_pin1 = None # Connect to ENA+ on DM542T (optional, set to None if not used)
 
-    camera_tag=2
-    lens_tag=2
-    start()
-    cap1,cap2,cap3,pipeline=initialize_cams()
-    cams=(cap1,cap2,cap3,pipeline)
+    fatcam = cv2.VideoCapture(5, cv2.CAP_MSMF)
+    fatcam.set(cv2.CAP_PROP_FRAME_WIDTH, 3840)
+    fatcam.set(cv2.CAP_PROP_FRAME_HEIGHT, 2160)
+    process_video_stream(fatcam)
     # pickup_element_with_tag(cams,11)
 
     
@@ -1089,56 +1180,4 @@ if __name__ == '__main__':
     
     # print(rotate_coordinate_plane((rotation+90)%360))
     
-    for i in range(5):
-        tag_pos,rotation=find_position_of_tag(cams,11)
-        # tag_pos_fat,dir_move=calculate_approach_vector(tag_pos,(rotation+90)%360)
-        # # print(dir_move)
-        # # print("rotation",(rotation+90)%360)
-        # fat_position,rotation=pickup_element_with_tag(cams,1,0.038,True)
-        
-        # # FAT(cams,11)
-        # move_to(arm,tag_pos_fat)
-        # code,place=arm.get_position_aa(is_radian=False)
-
-        # # code = arm.set_position_aa([place[0]-2]+[place[1]]+[place[2]-130]+place[3:], speed=50,mvacc=100, wait=True)
-
-        # # # code,place=arm.get_position_aa(is_radian=False)
-        # # # leave=False
-        # # # depth_image=None
-        # # # corners=None
-        # # # while not leave:
-        # # #     frames = pipeline.wait_for_frames()
-        # # #     depth_frame = frames.get_depth_frame()
-        # # #     depth_image = np.asanyarray(depth_frame.get_data())
-        # # #     color_frame = frames.get_color_frame()
-        # # #     color_image = np.asanyarray(color_frame.get_data())
-        # rotate_motor_async(board)
-        # # code = arm.set_position_aa([place[0]]+[place[1]+13.8]+[place[2]]+place[3:], speed=2,mvacc=20, wait=True)
-        # move_along_vector(arm,place,dir_move)
-        # # print("Testing motor rotation...")
-        # time.sleep(3)
-        # rotate_motor_async(board)
-        # # # Test rotation in one direction
-        # # # print("Rotating in one direction (1/4 turn)...")
-        # # # rotate_motor(2, True, board,0,3600000)
-        # # # time.sleep(1)
-
-        # # # print("Rotating in one direction (1/4 turn)...")
-        # # # rotate_motor(2, False, board,1,3600000)
-        # # # time.sleep(1)
-
-        # # # print("Rotating in one direction (1/4 turn)...")
-        # # # rotate_motor(2, False, board,2,3600000)
-        # # # time.sleep(1)
-        
-        
-        # # # print("Motor test completed")
-        
-        # code,place=arm.get_position_aa(is_radian=False)
-
-        # move_along_vector(arm,place,-dir_move)
-        # code,pos=arm.get_position_aa(is_radian=False)
-        # code = arm.set_position_aa(pos[:2]+[450]+pos[3:], speed=40,mvacc=40, wait=True)
-        # gohome()
-        # drop_element_at_position(arm,fat_position)
     board.exit()

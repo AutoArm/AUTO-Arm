@@ -101,16 +101,16 @@ board.digital[stop_pin2].mode = pyfirmata.OUTPUT
 
 
     
-# board.digital[cw_pin1].write(1)  # Enable the driver (active LOW)
-# time.sleep(0.1)
-# board.digital[cw_pin1].write(0)  # Enable the driver (active LOW)
-# print("cw 1 enabled")
+board.digital[cw_pin1].write(1)  # Enable the driver (active LOW)
+time.sleep(0.1)
+board.digital[cw_pin1].write(0)  # Enable the driver (active LOW)
+print("cw 1 enabled")
 
-# board.digital[cw_pin2].write(1)  # Enable the driver (active LOW)
-# time.sleep(0.1)
-# board.digital[cw_pin2].write(0)  # Enable the driver (active LOW)
-# print("cw 2 enabled")
-# time.sleep(5)
+board.digital[cw_pin2].write(1)  # Enable the driver (active LOW)
+time.sleep(0.1)
+board.digital[cw_pin2].write(0)  # Enable the driver (active LOW)
+print("cw 2 enabled")
+time.sleep(10)
 
 board.digital[stop_pin1].write(1)  # Enable the driver (active LOW)
 time.sleep(0.1)
@@ -133,7 +133,7 @@ print("cw 2 disabled")
 # board.digital[ccw_pin2].write(0)  # Enable the driver (active LOW)
 # print("ccw 2 enabled")
 
-# time.sleep(5)
+# time.sleep(10)
 
 # board.digital[stop_pin1].write(1)  # Enable the driver (active LOW)
 # time.sleep(0.1)

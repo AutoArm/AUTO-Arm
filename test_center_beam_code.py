@@ -512,23 +512,13 @@ def monitor_on():
     
 
 def save_frame_as_numpy(save_folder, frame, frame_count):
-
         # Create the filename with frame number
         filename = os.path.join(save_folder, f'image_{frame_count:04d}.npy')  # Saves as frame_0000.npy, frame_0001.npy, ...
-
         # Save the current frame as a NumPy array to a file
         np.save(filename, frame)
 
 
 def capture_averaged_image(cap, n_avg):
-    # ret, frame = cap.read()
-    # frames = np.zeros(frame.shape)
-    #frames = frames.astype(np.float32)
-    # for _ in range(n_avg):
-    #     ret, frame = cap.read()
-    #     if not ret:
-    #         return None
-    #     frames.append(frame)
     for indx in range(n_avg):
         ret, frame = cap.read()
         if not ret:
@@ -542,21 +532,6 @@ def capture_averaged_image(cap, n_avg):
     avg_frame = frames/n_avg
     return avg_frame
 
-# def capture_averaged_image(cap, n_avg):
-#     frames = []
-#     for _ in range(n_avg):
-#         ret, frame = cap.read()
-#         if not ret:
-#             return None
-#         frames.append(frame)
-    
-#     # Convert to float32 for averaging
-#     frames = [frame.astype(np.float32) for frame in frames]
-    
-#     # Compute the average
-#     avg_frame = np.mean(frames, axis=0).astype(np.uint8)
-    
-#     return avg_frame
 
 
 def augment_video(path, save_folder, start_time, end_time, steps):

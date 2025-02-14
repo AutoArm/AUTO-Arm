@@ -174,7 +174,7 @@ def move_to(arm,coor):
     else:
         quad=4
     height=coor[2]
-    highcoor=[coor[0]]+[coor[1]]+[500]+coor[3:]
+    highcoor=[coor[0]]+[coor[1]]+[400]+coor[3:]
     code = arm.set_servo_angle(servo_id=1,angle=new_angle,wait=True,is_radian=False,speed=speeds)
     code = arm.set_position_aa(highcoor, speed=speeds,mvacc=100, wait=True)
     code = arm.set_position_aa(coor, speed=speeds,mvacc=100, wait=True)
@@ -204,7 +204,7 @@ def center_arm(arm,frame):
         return 0
     else:
         return -1   
-def pickup_claw(arm,coor,pipeline,target_id,weight,special=False):
+def pickup_claw(arm,coor,pipeline,target_id,special=False):
     arm.set_gripper_enable(True)
     code = arm.set_gripper_speed(2000)
     arm.set_gripper_position(850,wait=True)
@@ -244,13 +244,12 @@ def pickup_claw(arm,coor,pipeline,target_id,weight,special=False):
     pickup_pos=place[:2]+[height]+place[3:]
     code = arm.set_position_aa(place[:2]+[height]+place[3:], speed=speeds,mvacc=100, wait=True)
     if special:
-        arm.set_gripper_position(390,wait=True) 
+        arm.set_gripper_position(300,wait=True) 
     else:
         arm.set_gripper_position(630,wait=True) 
 
-    arm.set_tcp_load(2, center_of_gravity=(0.06125, 0.0458, 0.0375))
+    arm.set_tcp_load(weight=0.8, center_of_gravity=(0.06125, 0.0458, 0.0375))
     code = arm.set_position_aa(place[:2]+[400]+place[3:], speed=speeds,mvacc=100, wait=True)
-    arm.set_tcp_load(weight, center_of_gravity=(0.06125, 0.0458, 0.0375))
     code = arm.set_servo_angle(angle=[180,75,-180,20,0,90,-60],is_radian=False,speed=speeds)
 
     return pickup_pos,rotation
@@ -317,9 +316,7 @@ def drop_claw(arm,coor):
     code=arm.set_servo_angle(servo_id=1,wait=True,angle=new_angle,is_radian=False,speed=50)
     code = arm.set_position_aa(highcoor,is_radian=False, speed=80,  mvacc=100, wait=True)
     code = arm.set_position_aa(mid_coor,is_radian=False, speed=80,  mvacc=100, wait=True)
-    arm.set_tcp_load(weight=2, center_of_gravity=(0.06125, 0.0458, 0.0375))
-
-    code = arm.set_position_aa(coor,is_radian=False, speed=20,  mvacc=20, wait=True)
+    code = arm.set_position_aa(coor,is_radian=False, speed=20,  mvacc=100, wait=True)
     arm.set_gripper_position(850,wait=True)
     arm.set_tcp_load(weight=0.8, center_of_gravity=(0.06125, 0.0458, 0.0375))
     code = arm.set_position_aa(endcoor,is_radian=False, speed=100,  mvacc=100, wait=True)
@@ -423,7 +420,7 @@ def fine_adjust(arm,pipeline,target_id):
     print(depth_value,"depth")
     rotation_angle = calculate_rotation_angle(corners)
     rotation_angle+=90
-    code = arm.set_position_aa([place[0]+72.2]+[place[1]+36]+place[2:], speed=50,mvacc=100, wait=True)
+    code = arm.set_position_aa([place[0]+72.2]+[place[1]+33.5]+place[2:], speed=50,mvacc=100, wait=True)
     code,pos = arm.get_servo_angle(servo_id=7,is_radian=False)
     code = arm.set_servo_angle(servo_id=7,wait=True,angle=pos+rotation_angle,is_radian=False)
 
@@ -515,7 +512,7 @@ def find_pos(arm,coor,pipeline,target_id):
     # code = arm.set_servo_angle(angle=[180,75,-180,20,0,90,-60],is_radian=False,speed=speeds)
     gohome()
     # print("Place found: ",place)
-    return pickup_pos,rotation
+    return place,rotation
 def rotate_claw(arm,rotation_angle):
     code,pos = arm.get_servo_angle(servo_id=7,is_radian=False)
     code = arm.set_servo_angle(servo_id=7,wait=True,angle=pos+rotation_angle,is_radian=False)
@@ -547,31 +544,6 @@ def rotate_motor_async(board):
     time.sleep(0.1)
     board.digital[cw_pin2].write(0)  # Enable the driver (active LOW)
     # print("cw 2 enabled")
-def rotate_motor_async_sing(board,num=1):
-    ccw_pin1 = 8  
-    cw_pin1 = 9  
-    stop_pin1 = 7  
-
-    ccw_pin2 = 5  
-    cw_pin2 = 6
-    stop_pin2 = 4  
-    # Set up the pins
-    board.digital[ccw_pin1].mode = pyfirmata.OUTPUT
-    board.digital[cw_pin1].mode = pyfirmata.OUTPUT
-    board.digital[stop_pin1].mode = pyfirmata.OUTPUT
-    board.digital[ccw_pin2].mode = pyfirmata.OUTPUT
-    board.digital[cw_pin2].mode = pyfirmata.OUTPUT
-    board.digital[stop_pin2].mode = pyfirmata.OUTPUT
-
-
-    if num==1:
-        board.digital[cw_pin1].write(1)  # Enable the driver (active LOW)
-        time.sleep(0.1)
-        board.digital[cw_pin1].write(0)  # Enable the driver (active LOW)
-    else:
-        board.digital[cw_pin2].write(1)  # Enable the driver (active LOW)
-        time.sleep(0.1)
-        board.digital[cw_pin2].write(0)  # Enable the driver (active LOW)
 def rotate_motor(revolutions, direction, board,option=0,speed_rpm=60):
     pul_pin1,dirp_pin1,dirm_pin1,ena_pin1=4,3,2,None
     pul_pin2,dirp_pin2,dirm_pin2,ena_pin2=9,7,5,None
@@ -671,7 +643,7 @@ def initialize_cams():
     cap1 = cv2.VideoCapture(0, cv2.CAP_MSMF)
     cap1.set(cv2.CAP_PROP_FRAME_WIDTH, 3840)
     cap1.set(cv2.CAP_PROP_FRAME_HEIGHT, 2160)
-    cap2 = cv2.VideoCapture(4, cv2.CAP_MSMF)
+    cap2 = cv2.VideoCapture(5, cv2.CAP_MSMF) #door
     cap2.set(cv2.CAP_PROP_FRAME_WIDTH, 3840)
     cap2.set(cv2.CAP_PROP_FRAME_HEIGHT, 2160)
     cap3 = cv2.VideoCapture(2, cv2.CAP_MSMF)
@@ -679,7 +651,7 @@ def initialize_cams():
     cap3.set(cv2.CAP_PROP_FRAME_HEIGHT, 6000)
     print("cameras setup")
     return (cap1,cap2,cap3,pipeline)
-def pickup_element_with_tag(cams,tag_id,weight=0.8,size=0.062,special=False):
+def pickup_element_with_tag(cams,tag_id,size=0.062,special=False):
     aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_6X6_250)
     parameters = cv2.aruco.DetectorParameters()
     cap1,cap2,cap3,pipeline=cams
@@ -730,10 +702,11 @@ def pickup_element_with_tag(cams,tag_id,weight=0.8,size=0.062,special=False):
             mem[2]=(1.2-mem[2])*1000
             pos=None
             if special:
-                pos,rotation=pickup_claw(arm,mem,pipeline,target_id,1.3,True)
+                pos,rotation=pickup_claw(arm,mem,pipeline,target_id,True)
+                arm.set_tcp_load(weight=1.3, center_of_gravity=(0.06125, 0.0458, 0.0375))
 
             else:
-                pos,rotation=pickup_claw(arm,mem,pipeline,target_id,weight)
+                pos,rotation=pickup_claw(arm,mem,pipeline,target_id)
             
             return pos,rotation
         
@@ -790,7 +763,7 @@ def find_position_of_tag(cams,tag_id,size=0.062):
             mem[1]=mem[1]*1000
             mem[2]=400
             place,rotation=find_pos(arm,mem,pipeline,tag_id)
-            gohome()
+            # gohome()
             # print("Place found: ",place)
             return place,rotation
 
@@ -1055,11 +1028,12 @@ def calculate_approach_vector(coor,rotation):
     add_z=0
     Delx=0
     print(rotation,"rotation in approach")
-    add_z=-0.2+0.02*rotation
-    Delx=1.7+0.01*rotation
+    add_z=-0.3+0.02*rotation
+    Delx=1.8+0.01*rotation
     if rotation>280:
-        add_z=0.6
-        Delx=-1+0.01*(180-rotation)
+        print("hither changing")
+        add_z=-1.3
+        Delx=-0.2+0.01*(180-rotation)
     elif rotation>180:
         add_z=1
         Delx=-1.2+0.01*(180-rotation)
@@ -1074,13 +1048,13 @@ def calculate_approach_vector(coor,rotation):
     x_uv,y_uv=rotate_coordinate_plane(rotation)
     # print(x_uv*(Delx)+y_uv*(-113),"additive part")
     x,y=x_uv*(Delx)+y_uv*(-113)
-
-    tag_pos_fat=[coor[0]+x]+[coor[1]+y]+[coor[2]-81.4+add_z]+coor[3:]
+    #-166.4
+    tag_pos_fat=[coor[0]+x]+[coor[1]+y]+[coor[2]-81.4+16+add_z]+coor[3:]
     # print(rotation)
     dir_move= np.concatenate([y_uv, np.zeros(4)])
     return tag_pos_fat,dir_move
 
-def move_along_vector(arm, start_pose, direction, distance=17):
+def move_along_vector(arm, start_pose, direction, distance=15):
     """
     Move the robot arm along a vector in steps.
 
@@ -1100,61 +1074,235 @@ def move_along_vector(arm, start_pose, direction, distance=17):
             mvacc=20,
             wait=True
         )
-    
+ 
 
+def detect_white_squares(frame, min_size=10, max_size=1000, threshold=130):
+    """
+    Detect largest white square in a frame and return its center point and area.
+    
+    Args:
+        frame: Current frame from video stream
+        min_size (int): Minimum side length of squares to detect
+        max_size (int): Maximum side length of squares to detect
+        threshold (int): Threshold for white color detection (0-255)
+    
+    Returns:
+        tuple: ((center_x, center_y), area) of largest square, or None if no squares found
+    """
+    # Convert to grayscale
+    gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    
+    # Threshold the image to get white regions
+    _, binary = cv2.threshold(gray, threshold, 255, cv2.THRESH_BINARY)
+    
+    # Find contours
+    contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    
+    largest_square = None
+    largest_area = 0
+    
+    for contour in contours:
+        # Get the bounding rectangle
+        x, y, w, h = cv2.boundingRect(contour)
+        
+        # Check if the contour is approximately square
+        aspect_ratio = float(w)/h
+        if 0.9 <= aspect_ratio <= 1.1:  # Allow for some deviation from perfect square
+            
+            # Check if the size is within our target range
+            if min_size <= w <= max_size and min_size <= h <= max_size:
+                
+                # Verify that the region is consistently white
+                roi = gray[y:y+h, x:x+w]
+                if np.mean(roi) > threshold:
+                    area = w * h
+                    if area > largest_area:
+                        largest_area = area
+                        center_x = x + w/2
+                        center_y = y + h/2
+                        largest_square = ((center_x, center_y), area)
+    
+    return largest_square
+def process_video_stream(cap):
+    """
+    Process webcam stream and detect white squares in real-time.
+    Press 'q' to quit.
+    """
+    # if not cap.isOpened():
+    #     raise ValueError("Could not open video stream")
+    
+    try:
+        while True:
+            # Read frame
+            ret, frame = cap.read()
+            if not ret:
+                print("Failed to grab frame")
+                break
+            
+            # Detect squares
+            result = detect_white_squares(frame)
+            
+            if result is not None:
+                (center, area) = result
+                center_x, center_y = center
+                # Calculate the side length from area
+                side_length = int(math.sqrt(area))
+                # Calculate top-left corner from center point
+                x = int(center_x - side_length/2)
+                y = int(center_y - side_length/2)
+                
+                # Draw rectangle around detected square
+                cv2.rectangle(frame, 
+                            (x, y), 
+                            (x + side_length, y + side_length), 
+                            (0, 255, 0), 
+                            2)
+                
+                # Display coordinates (using center coordinates)
+                cv2.putText(frame, 
+                          f'({int(center_x)},{int(center_y)})', 
+                          (x, y-5),
+                          cv2.FONT_HERSHEY_SIMPLEX, 
+                          0.5, 
+                          (0, 255, 0), 
+                          1)
+                return center_x,center_y
+            # Show the frame
+            cv2.imshow('White Square Detector', frame)
+            
+            # Break loop on 'q' press
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+                
+    finally:
+        # Clean up
+        cv2.destroyAllWindows()
+def center_fat(frame):
+    # check_saturation(frame)
+    result=detect_white_squares(frame)
+    if result is not None:
+        (center, area) = result
+        center_x, center_y = center
+        print(center)
+        # Calculate the side length from area
+        side_length = int(math.sqrt(area))
+        # Calculate top-left corner from center point
+        x = int(center_x - side_length/2)
+        y = int(center_y - side_length/2)
+        
+        # Draw rectangle around detected square
+        cv2.rectangle(frame, 
+                    (x, y), 
+                    (x + side_length, y + side_length), 
+                    (0, 255, 0), 
+                    2)
+        
+        # Display coordinates (using center coordinates)
+        cv2.putText(frame,  
+                    f'({int(center_x)},{int(center_y)})', 
+                    (x, y-5),
+                    cv2.FONT_HERSHEY_SIMPLEX, 
+                    0.5, 
+                    (0, 255, 0), 
+                    1)
+        
+        movex=(1081-center_x)/110
+        movez=(448-center_y)/110
+        print("center found",center_x,center_y,"and move right ",movex,movez)
+        if abs(movez)<=1 and abs(movex)<=1:
+            return 1
+        code,place=arm.get_position_aa(is_radian=False)
+        target_move=[place[0]+movex/10]+[place[1]]+[place[2]+movez]+place[3:]
+        
+        code = arm.set_position_aa(target_move, speed=20,mvacc=100, wait=True)
+        return 0
+    else:
+        return -1   
+    return None
+    # Show the frame
+            
+def move_along_vector_feedback(fatcam,arm,place,dir_move1,distance=10):
+    """
+    Move the robot arm along a vector in steps.
+
+    Parameters:
+    - arm: The robot arm object.
+    - start_pose: Starting pose of the robot arm.
+    - vector: Unit vector for direction of movement.
+    - steps: Number of steps to approach the tag.
+    - step_distance: Distance moved in each step (mm).
+    """
+    current_steps=0
+    center=None
+    while current_steps<distance:
+        ret1, frame1 = fatcam.read()
+        frame1=frame1[500:1500,700:2800]
+        if not ret1:
+            print("Failed to grab frame")
+            break
+        
+        # Make a copy of the frame for display
+        display_frame = frame1.copy()
+        
+        # Process frame with center_fat
+        centered = center_fat(display_frame)
+        
+        # Show the processed frame
+        cv2.imshow('Camera Feed', display_frame)
+        
+        # Add wait key for proper display and exit condition
+        key = cv2.waitKey(1)
+        if key == ord('q'):  # Press 'q' to quit
+            break
+            
+        if centered == 1:
+            print("Target centered")
+            current_steps+=1
+            code,place=arm.get_position_aa(is_radian=False)
+            move_along_vector(arm,place,dir_move1,1)
+        elif centered == -1:
+            print("No target detected")
+        
+        # Optional delay to make the visualization more visible
+        time.sleep(0.1)
+    
+    
 if __name__ == '__main__':
     board = pyfirmata.Arduino('COM5')  # Adjust this to your Arduino's port
     pul_pin1 = 4 # Connect to PUL+ on DM542T 4/9
     dirp_pin1 = 3  # Connect to DIR+ on DM542T 3/7
     dirm_pin1 = 2  # Connect to DIR- on DM542T 2/5
     ena_pin1 = None # Connect to ENA+ on DM542T (optional, set to None if not used)
-    rotate_motor_async(board)
-    time.sleep(3)
-    rotate_motor_async(board)
-
-    raise KeyError
 
     camera_tag=2
     lens_tag=2
     start()
     cap1,cap2,cap3,pipeline=initialize_cams()
     cams=(cap1,cap2,cap3,pipeline)
-    # pickup_element_with_tag(cams,11)
+    fatcam = cv2.VideoCapture(3, cv2.CAP_MSMF)
+    fatcam.set(cv2.CAP_PROP_FRAME_WIDTH, 3840)
+    fatcam.set(cv2.CAP_PROP_FRAME_HEIGHT, 2160)
 
-
-
-    # tag_pos,rotation=find_position_of_tag(cams,11)
-    # print("rotation",(rotation+90)%360)
-    # tag_pos,rotation=find_position_of_tag(cams,11)
-    # print("rotation",(rotation+90)%360)
-    # move_to(arm,tag_pos)
-    # tag_pos_fat=[tag_pos[0]-1.4]+[tag_pos[1]-110]+[tag_pos[2]-81.5]+tag_pos[3:]
-    # pickup camera 
-    # IP 192.168.1.241
-    
-    # print(rotate_coordinate_plane((rotation+90)%360))
-    # tag_pos,rotation=find_position_of_tag(cams,11)
-    fat_position,fat_rotation=pickup_element_with_tag(cams,tag_id=1,size=0.038, special=True)
-
-    tag_pos,rotation=[453.270325, 27.657326, 297, 95.103202, 152.824517, 0.182659],243.63931
-    print(tag_pos,rotation)
-    fat_position,rotation=pickup_element_with_tag(cams,11,weight=2)
-    arm.set_tcp_load(weight=1, center_of_gravity= (0.06125, 0.0458, 0.0375))    
-    drop_element_at_position(arm,tag_pos)
-    
-    tag_pos_fat,dir_move=calculate_approach_vector(tag_pos,(rotation+90)%360)
-    print("hiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiiii")
-
-    move_to(arm,tag_pos_fat)
+    ###################### Finding position #########################
+    tag_pos1,rotation1=find_position_of_tag(cams,11) 
+    tag_pos_fat1,dir_move1=calculate_approach_vector(tag_pos1,(rotation1+90)%360)
+    fat_position,rotation=pickup_element_with_tag(cams,1,0.038,True)
+    move_to(arm,tag_pos_fat1)
     code,place=arm.get_position_aa(is_radian=False)
-    rotate_motor_async(board)
-    move_along_vector(arm,place,dir_move)
-    time.sleep(3)
-    rotate_motor_async(board)
+    
+    move_along_vector(arm,place,dir_move1)
+    code,place=arm.get_position_aa(is_radian=False)
+    # center_fat(arm,fatcam)
+    move_along_vector_feedback(fatcam,arm,place,dir_move1)
+
+    # move_along_vector(arm,place,dir_move4)
+    # # # time.sleep(3)
+    # # # # rotate_motor_async(board)
     # code,place=arm.get_position_aa(is_radian=False)
-    # move_along_vector(arm,place,-dir_move)
+    # move_along_vector(arm,place,-dir_move4)
     # code,pos=arm.get_position_aa(is_radian=False)
     # code = arm.set_position_aa(pos[:2]+[450]+pos[3:], speed=40,mvacc=40, wait=True)
     # gohome()
     # drop_element_at_position(arm,fat_position)
+    ############################################################################
     board.exit()

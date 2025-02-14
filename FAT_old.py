@@ -643,10 +643,10 @@ def initialize_cams():
     cap1 = cv2.VideoCapture(0, cv2.CAP_MSMF)
     cap1.set(cv2.CAP_PROP_FRAME_WIDTH, 3840)
     cap1.set(cv2.CAP_PROP_FRAME_HEIGHT, 2160)
-    cap2 = cv2.VideoCapture(4, cv2.CAP_MSMF)
+    cap2 = cv2.VideoCapture(5, cv2.CAP_MSMF)
     cap2.set(cv2.CAP_PROP_FRAME_WIDTH, 3840)
     cap2.set(cv2.CAP_PROP_FRAME_HEIGHT, 2160)
-    cap3 = cv2.VideoCapture(2, cv2.CAP_MSMF)
+    cap3 = cv2.VideoCapture(1, cv2.CAP_MSMF)
     cap3.set(cv2.CAP_PROP_FRAME_WIDTH, 8000)
     cap3.set(cv2.CAP_PROP_FRAME_HEIGHT, 6000)
     print("cameras setup")
@@ -1075,7 +1075,35 @@ def move_along_vector(arm, start_pose, direction, distance=41):
             wait=True
         )
     
+def center_arm(arm,frame):
+    # check_saturation(frame)
+        
+    intensity,laser_center = rgb_to_intensity_and_peak(frame)
+    print(laser_center)
+    center_z=laser_center[1]
+    center_x=laser_center[0]
+    height, width, channels = frame.shape  
 
+    movex=(width//2-center_x)/10
+    movez=(height//2-center_z)/10
+    print("center found",center_x,center_z,480,640,"and",movex,movez)
+    if laser_center is not None:
+        cv2.circle(frame, laser_center, 10, (0, 255, 0), -1)
+        cv2.waitKey(100)
+        height, width, channels = frame.shape  
+        movex=(width//2-center_x)/20
+        movez=(height//2-center_z)/20
+        if abs(movez)<=1 and abs(movex)<=1:
+            return 1
+        code,place=arm.get_position_aa(is_radian=False)
+        target_move=[place[0]+movex/90]+[place[1]]+[place[2]-movez/90]+place[3:]
+        if target_move[0]>400 or target_move[2]>320 or target_move[0]<200 or target_move[2]<190:
+            return -1
+        code = arm.set_position_aa(target_move, speed=50,mvacc=100, wait=True)
+        return 0
+    else:
+        return -1
+    
 if __name__ == '__main__':
     board = pyfirmata.Arduino('COM5')  # Adjust this to your Arduino's port
     pul_pin1 = 4 # Connect to PUL+ on DM542T 4/9
@@ -1086,8 +1114,28 @@ if __name__ == '__main__':
     camera_tag=2
     lens_tag=2
     start()
+
     cap1,cap2,cap3,pipeline=initialize_cams()
+    
+    '''
+    for i in range(3, 4):
+        cap_FAT = cv2.VideoCapture(i, cv2.CAP_MSMF)
+        cap_FAT.set(cv2.CAP_PROP_FRAME_WIDTH, 8000)
+        cap_FAT.set(cv2.CAP_PROP_FRAME_HEIGHT, 6000)
+        print(i)
+
+        for _ in range(20):
+            ret, frame = cap_FAT.read()  # Read a frame
+            cv2.imshow("Camera 4 Output", frame)  # Show the frame
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+    '''
+    
+
+
     cams=(cap1,cap2,cap3,pipeline)
+
+    
     # pickup_element_with_tag(cams,11)
 
     
@@ -1102,9 +1150,9 @@ if __name__ == '__main__':
     # print(rotate_coordinate_plane((rotation+90)%360))
     
     # for i in range(5):
-    tag_pos,rotation=find_position_of_tag(cams,11)
+    tag_pos,rotation = find_position_of_tag(cams,11)
     tag_pos_fat,dir_move=calculate_approach_vector(tag_pos,(rotation+90)%360)
-    print((rotation+90)%360,"rptatopmmmmmmm")
+    print((rotation+90)%360,"rotating")
     # print(dir_move)
     # print("rotation",(rotation+90)%360)
     fat_position,rotation=pickup_element_with_tag(cams,1,0.038,True)
@@ -1129,8 +1177,9 @@ if __name__ == '__main__':
 
 
     # rotate_motor_async(board)
+    
 
-
+    
 
     # code = arm.set_position_aa([place[0]]+[place[1]+13.8]+[place[2]]+place[3:], speed=2,mvacc=20, wait=True)
     move_along_vector(arm,place,dir_move)
@@ -1165,8 +1214,30 @@ if __name__ == '__main__':
     code,place=arm.get_position_aa(is_radian=False)
 
     move_along_vector(arm,place,-dir_move)
+
+    cap_FAT = cv2.VideoCapture(2, cv2.CAP_MSMF)
+    cap_FAT.set(cv2.CAP_PROP_FRAME_WIDTH, 8000)
+    cap_FAT.set(cv2.CAP_PROP_FRAME_HEIGHT, 6000)
+
+    while True:
+        ret, frame = cap_FAT.read()  # Read a frame
+        cv2.imshow("Camera 4 Output", frame)  # Show the frame
+        #center_arm(frame)
+        if not ret:
+            print("Failed to grab frame")
+        
+        cv2.waitKey(1)
+        
+        
+
     code,pos=arm.get_position_aa(is_radian=False)
     code = arm.set_position_aa(pos[:2]+[450]+pos[3:], speed=40,mvacc=40, wait=True)
+
+    
+
+
     gohome()
     drop_element_at_position(arm,fat_position[:2]+[fat_position[2]+1]+fat_position[3:])
     board.exit()
+
+    

@@ -238,7 +238,7 @@ def face_shift(plane, radius = 200):
 
     arm.set_position(x=x-dx, y=y-dy, z=z-dz, roll=new_roll, pitch=new_pitch, yaw=new_yaw, is_radian=False)
 
-def rotate(plane, theta):
+def rotate_theta(plane, theta):
     """
     assumes already facing the plane
 
@@ -266,49 +266,98 @@ def rotate(plane, theta):
     return new_plane
 
 
-def vector_to_euler(vector):
-    """
-    Convert a 3D vector to roll, pitch, yaw angles in degrees.
-    Known cases:
-    [0,0,-1] -> roll=-180°, pitch=0°, yaw=-90°
-    [0.70711, 0, -0.70711] -> roll=-145°, pitch=0°, yaw=-90°
-    [-0.70711, 0, -0.70711] -> roll=145°, pitch=0°, yaw=-90°
-    [-0.0002, -0.7069, -0.7073] -> roll=180°, pitch=-45°, yaw=-90°
-    [-4.52e-05, 0.7071, -0.7071] -> roll=180°, pitch=45°, yaw=-90°
-    
-    Args:
-        vector: numpy array of shape (3,) representing direction vector
-        
-    Returns:
-        tuple: (roll, pitch, yaw) angles in degrees
-    """
-    # Normalize the vector
-    vector = vector / np.linalg.norm(vector)
-    x, y, z = vector
-    
-    if np.allclose([x, y, z], [0, 0, -1]):
-        return -180.0, 0.0, -90.0
-    
-    # Calculate yaw (always close to -90 for these cases)
-    yaw = -90.0
-    
-    # Calculate pitch - angle from XY plane
-    # For vectors with significant Y component
-    if abs(y) > 0.1:
-        pitch = np.degrees(np.arctan2(z, -y))
-    else:
-        pitch = 0.0
-    
-    # Calculate roll
-    if abs(y) > 0.1:
-        roll = 180.0
-    else:
-        roll = 180.0 - np.degrees(np.arccos(-z))
-        if x > 0:
-            roll = -roll
-    
-    return roll, pitch, yaw
 
+def vector_to_unit(v):
+    v = np.array(v, dtype=float)
+    norm = np.linalg.norm(v)
+    if norm < 1e-15:
+        raise ValueError("Zero-length vector.")
+    return v / norm
+
+def axis_angle_to_quaternion(axis, angle):
+    # Axis is a unit vector
+    half_angle = angle / 2.0
+    s = math.sin(half_angle)
+    w = math.cos(half_angle)
+    x = axis[0]*s
+    y = axis[1]*s
+    z = axis[2]*s
+    return np.array([w, x, y, z], dtype=float)
+
+def quaternion_to_rotation_matrix(q):
+    w, x, y, z = q
+    # Rotation matrix from quaternion
+    # R = [[1-2y²-2z²,  2xy-2wz,    2xz+2wy ],
+    #      [2xy+2wz,    1-2x²-2z²,  2yz-2wx ],
+    #      [2xz-2wy,    2yz+2wx,    1-2x²-2y²]]
+    R = np.array([
+        [1 - 2*(y**2 + z**2), 2*(x*y - w*z),     2*(x*z + w*y)],
+        [2*(x*y + w*z),       1 - 2*(x**2 + z**2), 2*(y*z - w*x)],
+        [2*(x*z - w*y),       2*(y*z + w*x),       1 - 2*(x**2 + y**2)]
+    ], dtype=float)
+    return R
+
+def align_vectors(v1, v2):
+    """
+    Given two 3D vectors v1 and v2, returns (roll, pitch, yaw) in degrees, where:
+    - roll is rotation about Y-axis
+    - pitch is rotation about X-axis
+    - yaw is rotation about Z-axis
+    using the intrinsic rotation sequence: yaw (Z), then pitch (X), then roll (Y).
+    """
+    # Normalize
+    v1_u = vector_to_unit(v1)
+    v2_u = vector_to_unit(v2)
+
+    # Check if they are almost identical
+    dot_val = np.dot(v1_u, v2_u)
+    if abs(dot_val - 1.0) < 1e-12:
+        return 0.0, 0.0, 0.0
+
+    # If opposite
+    if abs(dot_val + 1.0) < 1e-12:
+        # Rotate 180 degrees about any axis perpendicular to v1
+        perp = np.array([1,0,0], dtype=float)
+        if abs(np.dot(perp, v1_u)) > 0.99:
+            perp = np.array([0,1,0], dtype=float)
+        axis = np.cross(v1_u, perp)
+        axis /= np.linalg.norm(axis)
+        angle = math.pi
+    else:
+        # General case
+        axis = np.cross(v1_u, v2_u)
+        axis /= np.linalg.norm(axis)
+        angle = math.acos(dot_val)
+
+    # Axis-angle to quaternion
+    q = axis_angle_to_quaternion(axis, angle)
+
+    # Quaternion to rotation matrix
+    R = quaternion_to_rotation_matrix(q)
+
+    # Extract Euler angles from rotation matrix
+    # Given R = R_z(yaw)*R_x(pitch)*R_y(roll), we have:
+    # θ = pitch = asin(R[2,1])
+    # ψ = yaw   = atan2(-R[0,1], R[1,1])
+    # φ = roll  = atan2(-R[2,0], R[2,2])
+    #
+    # roll = φ (about Y), pitch = θ (about X), yaw = ψ (about Z)
+   
+    # Check for numerical issues
+    # Clamp R[2,1] within [-1,1] before asin
+    val = R[2,1]
+    val = max(min(val,1.0), -1.0)
+   
+    pitch = math.asin(val)    # θ
+    yaw = math.atan2(-R[0,1], R[1,1])  # ψ
+    roll = math.atan2(-R[2,0], R[2,2]) # φ
+
+    # Convert to degrees
+    roll_deg = math.degrees(roll)
+    pitch_deg = math.degrees(pitch)
+    yaw_deg = math.degrees(yaw)
+
+    return (roll_deg, pitch_deg, yaw_deg)
 
 
 def rotate_phi(plane, phi, radius=200):
@@ -334,114 +383,41 @@ def rotate_phi(plane, phi, radius=200):
     
     # Calculate the current end point in space
     curr_end_point = np.array([x, y, z]) + curr_end_effector * radius
-    
-    # Project end effector direction onto plane perpendicular to rotation axis
-    # This ensures we rotate in the correct plane
-    proj = curr_end_effector - np.dot(curr_end_effector, plane) * plane
-    proj = normalize(proj)
-    
-    # Create rotation matrix for phi rotation around plane vector
-    phi_rad = np.radians(phi)
-    cos_phi = np.cos(phi_rad)
-    sin_phi = np.sin(phi_rad)
-    
-    # Get perpendicular vector to form basis for rotation
-    perp = normalize(np.cross(plane, proj))
-    
-    # Calculate new end effector direction using the rotation in the plane
-    new_end_effector = proj * cos_phi + perp * sin_phi + \
-                      plane * np.dot(curr_end_effector, plane)
-    new_end_effector = normalize(new_end_effector)
-    
-    # Convert new direction to roll, pitch, yaw
-    new_roll, new_pitch, new_yaw = vector_to_euler(new_end_effector)
-    
-    # Calculate new base position to maintain end point position
-    new_base_pos = curr_end_point - new_end_effector * radius
-    
-    # Move to new position with new orientation
-    arm.set_position(
-        x=new_base_pos[0],
-        y=new_base_pos[1],
-        z=new_base_pos[2],
-        roll=new_roll,
-        pitch=new_pitch,
-        yaw=new_yaw,
-        is_radian=False
-    )
 
-from scipy.spatial.transform import Rotation
-def rotate_phi(axis, phi, radius=200):
-    """
-    Rotates the robot arm around an arbitrary axis vector by phi degrees,
-    maintaining the laser contact point while rotating the end effector.
-    
-    Args:
-        axis (np.array): Axis to rotate around (e.g. [0,-1,0] for lens normal)
-        phi (float): Rotation angle in degrees
-        radius (float): Distance from base position to end effector
-    """
-    # Get current position
-    position = arm.get_position()
-    x, y, z, curr_roll, curr_pitch, curr_yaw = position[1]
-    curr_pos = np.array([x, y, z])
-    
-    # Get current end effector direction
-    curr_end_effector = get_end_effector_direction(curr_roll, curr_pitch, curr_yaw)
-    
-    # Normalize vectors
-    axis = normalize(np.array(axis))
-    curr_end_effector = normalize(curr_end_effector)
-    
-    # Calculate current end point (where laser hits lens)
-    curr_end_point = curr_pos + curr_end_effector * radius
-    
-    # Convert angle to radians
-    phi_rad = np.radians(phi)
-    
-    # Rotate end effector direction using Rodrigues formula
-    cos_phi = np.cos(phi_rad)
-    sin_phi = np.sin(phi_rad)
-    
-    new_end_effector = (curr_end_effector * cos_phi + 
-                       np.cross(axis, curr_end_effector) * sin_phi + 
-                       axis * np.dot(axis, curr_end_effector) * (1 - cos_phi))
-    new_end_effector = normalize(new_end_effector)
+    goal = rotate_vector(curr_end_effector, plane, phi) # target for where the end effector should end up
 
 
-    print(new_end_effector)
+    print(list(map(float,curr_end_effector)))
+    print(list(map(float, goal)))
+    droll, dyaw, dpitch = align_vectors(curr_end_effector, goal)
+
+    print(droll, dpitch, dyaw)
+
+    droll, dpitch, dyaw = -55, -30, 55
+
+    arm.set_position(x=x, y=y, z=z, 
+                     roll=curr_roll+droll, pitch=curr_pitch+dpitch, yaw = curr_yaw+dyaw)
+
     
-    # Calculate new base position to maintain end point
-    new_base_pos = curr_end_point - new_end_effector * radius
-    
-    # Convert new direction to roll, pitch, yaw
-    new_pitch = -np.arcsin(new_end_effector[2])
-    new_roll = np.arctan2(new_end_effector[1], new_end_effector[0])
-    new_yaw = 0  # We may need to adjust this
-    
-    # Set new position and orientation
-    arm.set_position(
-        x=new_base_pos[0],
-        y=new_base_pos[1],
-        z=new_base_pos[2],
-        roll=np.degrees(new_roll),
-        pitch=np.degrees(new_pitch),
-        yaw=new_yaw,
-        is_radian=False
-    )
 
 if __name__ == '__main__':
 
 
     plane = [0,-1,0]
 
-    new_plane = rotate(plane, 0) # update radius of face_shift if center moves
+    #new_plane = rotate_theta(plane, 45) # update radius of face_shift if center moves
 
+    #time.sleep(5)
 
-    # rotate_phi(new_plane,0)
+    #rotate_phi(new_plane, 90)
 
+    #print(align_vectors([0,0,-1], [1,0,0]))
 
+    x, y, z, roll, pitch, yaw = arm.get_position()[1]
 
+    rotate_theta(plane, 0)
+
+    # print(get_end_effector_direction(roll, pitch, yaw))
 
     #arm.set_position(x=x, y = y, z = z, roll=roll, pitch=pitch, yaw=yaw, is_radian = False)
 
