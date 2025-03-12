@@ -174,10 +174,11 @@ def move_to(arm,coor):
     else:
         quad=4
     height=coor[2]
-    highcoor=[coor[0]]+[coor[1]]+[350]+coor[3:]
+    highcoor=[coor[0]]+[coor[1]]+[500]+coor[3:]
     code = arm.set_servo_angle(servo_id=1,angle=new_angle,wait=True,is_radian=False,speed=speeds)
     code = arm.set_position_aa(highcoor, speed=speeds,mvacc=100, wait=True)
     code = arm.set_position_aa(coor, speed=speeds,mvacc=100, wait=True)
+
 def center_arm(arm,frame):
     # check_saturation(frame)
         
@@ -291,8 +292,8 @@ def pickup_claw_stay(arm,coor,pipeline):
 
     arm.set_tcp_load(weight=0.8, center_of_gravity=(0.06125, 0.0458, 0.0375))
     
-
     return place
+
 def drop_claw(arm,coor):
     code = arm.set_gripper_speed(1000)
     print(coor)
@@ -1050,7 +1051,9 @@ def calculate_approach_vector(coor,rotation):
     x,y=x_uv*(Delx)+y_uv*(-113)
     #-166.4
     #-81.4+16
-    tag_pos_fat=[coor[0]+x]+[coor[1]+y]+[coor[2]-197+add_z]+coor[3:]
+    #-197
+    #-10
+    tag_pos_fat=[coor[0]+x]+[coor[1]+y]+[coor[2]-20+50+add_z]+coor[3:]
     # print(rotation)
     dir_move= np.concatenate([y_uv, np.zeros(4)])
     return tag_pos_fat,dir_move
@@ -1207,16 +1210,16 @@ def center_fat(frame,rotation):
                     (0, 255, 0), 
                     1)
         
-        movex=(881-center_x)/110
-        movez=(235-center_y)/110
+        movex=(855-center_x)/20
+        movez=(180-center_y)/20
         print("center found",center_x,center_y,"and move ",movex,movez)
-        if abs(movez)<=1 and abs(movex)<=1:
+        if abs(movez)<=0.3 and abs(movex)<=0.3:
             return 1
         rotatex,rotatey=rotate_coordinate_plane(rotation)
         basismovex=rotatex[0]*movex
         basismovey=rotatex[1]*(movex)
         code,place=arm.get_position_aa(is_radian=False)
-        target_move=[place[0]+basismovex/10]+[place[1]+basismovey/10]+[place[2]+movez]+place[3:]
+        target_move=[place[0]+basismovex/2]+[place[1]+basismovey]+[place[2]+movez/2]+place[3:]
         
         code = arm.set_position_aa(target_move, speed=20,mvacc=100, wait=True)
         return 0
@@ -1225,7 +1228,7 @@ def center_fat(frame,rotation):
     return None
     # Show the frame
             
-def move_along_vector_feedback(fatcam,arm,place,dir_move1,rotation,distance=10):
+def move_along_vector_feedback(fatcam,arm,place,dir_move1,rotation,distance=15):
 
 
     """
@@ -1238,9 +1241,9 @@ def move_along_vector_feedback(fatcam,arm,place,dir_move1,rotation,distance=10):
     - steps: Number of steps to approach the tag.
     - step_distance: Distance moved in each step (mm).
     """
-    current_steps=0
+    current_steps=distance-1
     center=None
-    while current_steps<distance:
+    while True:
         ret1, frame1 = fatcam.read()
         frame1=frame1[700:1300,900:2600]
         if not ret1:
@@ -1263,9 +1266,9 @@ def move_along_vector_feedback(fatcam,arm,place,dir_move1,rotation,distance=10):
             
         if centered == 1:
             print("Target centered")
-            current_steps+=1
             code,place=arm.get_position_aa(is_radian=False)
-            move_along_vector(arm,place,dir_move1,1)
+            move_along_vector(arm,place,dir_move1,distance)
+            return
         elif centered == -1:
             print("No target detected")
         

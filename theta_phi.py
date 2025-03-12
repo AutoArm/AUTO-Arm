@@ -77,7 +77,7 @@ class RobotMain(object):
         #    the origin of the tool frame.
         #    Adjust [x, y, z, roll, pitch, yaw] as needed.
         # -------------------------------------------------------------------
-        offset = [0.0, 0.0, 180.5, 0.0, 0.0, 0.0]  # Example: 100 mm along +Z
+        offset = [0.0, 0.0, 185, 0.0, 0.0, 0.0]  # Example: 100 mm along +Z
         code = self._arm.set_tcp_offset(offset)
         if code != 0:
             self.pprint(f"Failed to set tool offset, code={code}")
@@ -205,19 +205,19 @@ class RobotMain(object):
 
             # 2) Define the tip position we want to keep in space (base frame)
             #    For example, let's keep the tip at (x=300, y=0, z=200).
-            x_fixed = -258.9
-            y_fixed = 180.0
-            z_fixed = 158.3
+            x_fixed = -243.5 - 15
+            y_fixed = 188.3 + 17.5
+            z_fixed = 172.3 -4.5
 
             # 3) Spherical angles to try
-            angles_to_try = []
+            angles_to_try = [(0,0)]#, (0,30), (0,-30), (30, 0), (30, 0), (-30,0), (0,0)]
 
-            for x in range(-5, 41):
-                for y in range(-5, 41):
-                    if x % 2 == 0:
-                        y = 35 - y
+            # for x in range(-5, 41):
+            #     for y in range(-5, 41):
+            #         if x % 2 == 0:
+            #             y = 35 - y
                     
-                    angles_to_try.append((x,y))
+            #         angles_to_try.append((x,y))
 
 
 
@@ -254,15 +254,15 @@ class RobotMain(object):
                 )
 
                 if buffer == 1:
-                    time.sleep(60)
+                    #time.sleep(60)
                     buffer = 0
 
                 
 
-                frame = capture_averaged_image(cap, 64)
-                frame = frame[2350:3450,:,:]
-                save_frame_as_numpy(save_folder, frame, frame_count, theta_deg - 90, phi_deg + 90)
-                frame_count += 1 
+                # frame = capture_averaged_image(cap, 64)
+                # frame = frame[2350:3450,:,:]
+                # save_frame_as_numpy(save_folder, frame, frame_count, theta_deg - 90, phi_deg + 90)
+                # frame_count += 1 
 
 
 
