@@ -6,7 +6,7 @@ import time
 
 class StepperController:
 
-    def __init__(self, port='COM7', baud_rate=115200):
+    def __init__(self, port='COM9', baud_rate=115200):
 
         self.serial = serial.Serial(port, baud_rate, timeout=1)
 

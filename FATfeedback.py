@@ -35,6 +35,8 @@ import time
 import math
 import cv2
 import pyrealsense2 as rs
+import serial
+
 sys.path.append(os.path.join(os.path.dirname(__file__), '../../..'))
 
 from PIL import Image
@@ -174,7 +176,7 @@ def move_to(arm,coor):
     else:
         quad=4
     height=coor[2]
-    highcoor=[coor[0]]+[coor[1]]+[500]+coor[3:]
+    highcoor=[coor[0]]+[coor[1]]+[550]+coor[3:]
     code = arm.set_servo_angle(servo_id=1,angle=new_angle,wait=True,is_radian=False,speed=speeds)
     code = arm.set_position_aa(highcoor, speed=speeds,mvacc=100, wait=True)
     code = arm.set_position_aa(coor, speed=speeds,mvacc=100, wait=True)
@@ -545,6 +547,9 @@ def rotate_motor_async(board):
     time.sleep(0.1)
     board.digital[cw_pin2].write(0)  # Enable the driver (active LOW)
     # print("cw 2 enabled")
+def rotate_motor1(controller):
+    controller.power_motor(0, True)
+    controller.move_motor(1, 2048)
 def rotate_motor(revolutions, direction, board,option=0,speed_rpm=60):
     pul_pin1,dirp_pin1,dirm_pin1,ena_pin1=4,3,2,None
     pul_pin2,dirp_pin2,dirm_pin2,ena_pin2=9,7,5,None
@@ -1048,17 +1053,17 @@ def calculate_approach_vector(coor,rotation):
     #     Delx=0.6 
     x_uv,y_uv=rotate_coordinate_plane(rotation)
     # print(x_uv*(Delx)+y_uv*(-113),"additive part")
-    x,y=x_uv*(Delx)+y_uv*(-113)
+    x,y=x_uv*(Delx)+y_uv*(-126)
     #-166.4
     #-81.4+16
     #-197
     #-10
-    tag_pos_fat=[coor[0]+x]+[coor[1]+y]+[coor[2]-20+50+add_z]+coor[3:]
+    tag_pos_fat=[coor[0]+x]+[coor[1]+y]+[coor[2]-20+add_z]+coor[3:]
     # print(rotation)
     dir_move= np.concatenate([y_uv, np.zeros(4)])
     return tag_pos_fat,dir_move
 
-def move_along_vector(arm, start_pose, direction, distance=10):
+def move_along_vector(arm, start_pose, direction, distance=3):
     """
     Move the robot arm along a vector in steps.
 
@@ -1210,16 +1215,19 @@ def center_fat(frame,rotation):
                     (0, 255, 0), 
                     1)
         
-        movex=(855-center_x)/20
-        movez=(180-center_y)/20
+        movex=(930-center_x)/20 # 1020 IS TO THE left
+        movez=(290-center_y)/20
         print("center found",center_x,center_y,"and move ",movex,movez)
-        if abs(movez)<=0.3 and abs(movex)<=0.3:
+        if abs(movez)<=0.1 and abs(movex)<=0.1:
             return 1
-        rotatex,rotatey=rotate_coordinate_plane(rotation)
-        basismovex=rotatex[0]*movex
-        basismovey=rotatex[1]*(movex)
+        print(rotation, "--------------------------------------------------")
+        x_basis,y_basis=rotate_coordinate_plane(rotation)
+        result=movex * x_basis
+        print("basisx ",x_basis)
+        print("basisy ",y_basis)
+        print("movement ",result)
         code,place=arm.get_position_aa(is_radian=False)
-        target_move=[place[0]+basismovex/2]+[place[1]+basismovey]+[place[2]+movez/2]+place[3:]
+        target_move=[place[0]-result[0]/2]+[place[1]-result[1]/2]+[place[2]+movez/2]+place[3:]
         
         code = arm.set_position_aa(target_move, speed=20,mvacc=100, wait=True)
         return 0
@@ -1228,7 +1236,7 @@ def center_fat(frame,rotation):
     return None
     # Show the frame
             
-def move_along_vector_feedback(fatcam,arm,place,dir_move1,rotation,distance=15):
+def move_along_vector_feedback(fatcam,arm,place,dir_move1,rotation,distance=17):
 
 
     """
@@ -1274,14 +1282,72 @@ def move_along_vector_feedback(fatcam,arm,place,dir_move1,rotation,distance=15):
         
         # Optional delay to make the visualization more visible
         time.sleep(0.1)
-    
+class StepperController:
+
+    def __init__(self, port='COM9', baud_rate=115200):
+
+        self.serial = serial.Serial(port, baud_rate, timeout=1)
+
+        time.sleep(2)
+
+       
+
+    def move_motor(self, motor_number, steps):
+
+        """
+
+        Move specified motor number of steps
+
+        motor_number: 1 or 2
+
+        steps: positive for forward, negative for backward
+
+        """
+
+        command = f"move,{motor_number},{steps}\n"
+
+        self.serial.write(command.encode())
+
+        response = self.serial.readline().decode().strip()
+
+        return response
+
+   
+
+    def power_motor(self, motor_number, state):
+
+        """
+
+        Control power to motors
+
+        motor_number: 0 for both motors, 1 for motor1, 2 for motor2
+
+        state: True to enable, False to disable
+
+        """
+
+        command = f"power,{motor_number},{1 if state else 0}\n"
+
+        self.serial.write(command.encode())
+
+        response = self.serial.readline().decode().strip()
+
+        return response
+
+       
+
+    def close(self):
+
+        self.serial.close()
+
     
 if __name__ == '__main__':
-    board = pyfirmata.Arduino('COM5')  # Adjust this to your Arduino's port
-    pul_pin1 = 4 # Connect to PUL+ on DM542T 4/9
-    dirp_pin1 = 3  # Connect to DIR+ on DM542T 3/7
-    dirm_pin1 = 2  # Connect to DIR- on DM542T 2/5
-    ena_pin1 = None # Connect to ENA+ on DM542T (optional, set to None if not used)
+    # board = pyfirmata.Arduino('COM5')  # Adjust this to your Arduino's port
+    # pul_pin1 = 4 # Connect to PUL+ on DM542T 4/9
+    # dirp_pin1 = 3  # Connect to DIR+ on DM542T 3/7
+    # dirm_pin1 = 2  # Connect to DIR- on DM542T 2/5
+    # ena_pin1 = None # Connect to ENA+ on DM542T (optional, set to None if not used)
+    controller = StepperController()  # Adjust port as needed
 
     camera_tag=2
     lens_tag=2
@@ -1299,10 +1365,17 @@ if __name__ == '__main__':
     move_to(arm,tag_pos_fat1)
     code,place=arm.get_position_aa(is_radian=False)
     
+    print("Enabling motors...")
+    controller.power_motor(0, True)
+    # Move motor 1
+    controller.move_motor(1, 2048*13)
+    controller.move_motor(2, -13*2048)
     move_along_vector(arm,place,dir_move1)
     code,place=arm.get_position_aa(is_radian=False)
     # center_fat(arm,fatcam)
-    move_along_vector_feedback(fatcam,arm,place,dir_move1,rotation1)
+    move_along_vector_feedback(fatcam,arm,place,dir_move1,(rotation1+90)%360)
+
+    controller.power_motor(0, False)
 
     # move_along_vector(arm,place,dir_move4)
     # # # time.sleep(3)
@@ -1314,4 +1387,5 @@ if __name__ == '__main__':
     # gohome()
     # drop_element_at_position(arm,fat_position)
     ############################################################################
-    board.exit()
+    # board.exit()
+    controller.close()
