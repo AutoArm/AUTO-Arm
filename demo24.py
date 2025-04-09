@@ -56,7 +56,48 @@ from xarm.wrapper import XArmAPI
 #             sys.exit(1)
 # def hangle_err_warn_changed(item):
 #     print('ErrorCode: {}, WarnCode: {}'.format(item['error_code'], item['warn_code']))
-
+class StepperController:
+    def __init__(self, port='COM12', baud_rate=115200):
+        self.serial = serial.Serial(port, baud_rate, timeout=1)
+        time.sleep(2)  # Allow time for Arduino to reset
+       
+    def move_motor(self, motor_number, steps):
+        """
+        Move specified motor number of steps
+        motor_number: 1, 2, or 3
+        steps: positive for forward, negative for backward
+        """
+        command = f"move,{motor_number},{steps}\n"
+        self.serial.write(command.encode())
+        response = self.serial.readline().decode().strip()
+        return response
+   
+    def move_all_motors(self, steps1, steps2, steps3):
+        """
+        Move all three motors simultaneously with different step counts
+        steps1, steps2, steps3: Number of steps for each motor
+                                (positive for forward, negative for backward)
+        """
+        command = f"moveall,{steps1},{steps2},{steps3}\n"
+        self.serial.write(command.encode())
+        response = self.serial.readline().decode().strip()
+        return response
+   
+    def power_motor(self, motor_number, state):
+        """
+        Control power to motors
+        motor_number: 0 for all motors, 1 for motor1, 2 for motor2, 3 for motor3
+        state: True to enable, False to disable
+        """
+        command = f"power,{motor_number},{1 if state else 0}\n"
+        self.serial.write(command.encode())
+        response = self.serial.readline().decode().strip()
+        return response
+       
+    def close(self):
+        """Close the serial connection"""
+        self.serial.close()
+ 
 arm = XArmAPI("192.168.1.241")
 arm.motion_enable(enable=True)
 arm.set_mode(0)
@@ -228,19 +269,22 @@ def pickup_claw(arm,coor,pipeline,target_id,special=False):
         quad=3
     else:
         quad=4
-
-    highcoor=[coor[0]-70]+[coor[1]-35]+[350]+coor[3:]
+    if coor[0]<-300:
+        coor[0]+=10
+    if coor[0]>300:
+        coor[0]-=10
+    highcoor=[coor[0]-70]+[coor[1]-35]+[400]+coor[3:]
     # print("here",highcoor)
     code = arm.set_servo_angle(servo_id=1,angle=new_angle,wait=True,is_radian=False,speed=speeds)
     code = arm.set_position_aa(highcoor, speed=speeds,mvacc=100, wait=True)
     height,rotation=fine_adjust(arm,pipeline,target_id)
-    # print("after fine adjust")
+    print("after fine adjust",height)
     height=height-100
-    height=350-height
+    height=400-height
     if special:
-        height+=29
+        height+=20
     else:
-        height+=4
+        height+=16
     
     
     code,place=arm.get_position_aa(is_radian=False)
@@ -249,7 +293,7 @@ def pickup_claw(arm,coor,pipeline,target_id,special=False):
     if special:
         arm.set_gripper_position(300,wait=True) 
     else:
-        arm.set_gripper_position(630,wait=True) 
+        arm.set_gripper_position(530,wait=True)
 
     arm.set_tcp_load(weight=0.8, center_of_gravity=(0.06125, 0.0458, 0.0375))
     code = arm.set_position_aa(place[:2]+[400]+place[3:], speed=speeds,mvacc=100, wait=True)
@@ -298,7 +342,7 @@ def pickup_claw_stay(arm,coor,pipeline):
 
 def drop_claw(arm,coor):
     code = arm.set_gripper_speed(1000)
-    print(coor)
+    print("coor",coor)
     highcoor=coor[:2]+[500]+coor[3:]
     endcoor=coor[:2]+[500]+coor[3:]
     x=coor[0]
@@ -322,6 +366,7 @@ def drop_claw(arm,coor):
     code = arm.set_position_aa(coor,is_radian=False, speed=20,  mvacc=100, wait=True)
     arm.set_gripper_position(850,wait=True)
     arm.set_tcp_load(weight=0.8, center_of_gravity=(0.06125, 0.0458, 0.0375))
+    code = arm.set_gripper_speed(2000)
     code = arm.set_position_aa(endcoor,is_radian=False, speed=100,  mvacc=100, wait=True)
     code=arm.set_servo_angle(angle=[180,75,-180,20,0,90,-60],speed=80,is_radian=False,wait=True)
     return
@@ -1186,37 +1231,26 @@ def process_video_stream(cap):
     finally:
         # Clean up
         cv2.destroyAllWindows()
+
 def center_fat(frame,rotation):
-    # check_saturation(frame)
-    result=detect_white_squares(frame)
-    if result is not None:
-        (center, area) = result
-        center_x, center_y = center
-        print(center)
-        # Calculate the side length from area
-        side_length = int(math.sqrt(area))
-        # Calculate top-left corner from center point
-        x = int(center_x - side_length/2)
-        y = int(center_y - side_length/2)
+    
+
+    corners, id1 = detect_aruco(frame,12)
+    if corners is not None:
+        center_x = np.mean(corners[:, 0])
+        center_y = np.mean(corners[:, 1])
         
-        # Draw rectangle around detected square
+        # Draw rectangle using the first and third corners
+        # Note: This assumes corners are ordered properly
         cv2.rectangle(frame, 
-                    (x, y), 
-                    (x + side_length, y + side_length), 
+                    (int(corners[0][0]), int(corners[0][1])), 
+                    (int(corners[2][0]), int(corners[2][1])), 
                     (0, 255, 0), 
                     2)
         
         # Display coordinates (using center coordinates)
-        cv2.putText(frame,  
-                    f'({int(center_x)},{int(center_y)})', 
-                    (x, y-5),
-                    cv2.FONT_HERSHEY_SIMPLEX, 
-                    0.5, 
-                    (0, 255, 0), 
-                    1)
-        
-        movex=(930-center_x)/20 # 1020 IS TO THE left
-        movez=(290-center_y)/20
+        movex=(1895-center_x)/20 # greater IS TO THE left
+        movez=(1235-center_y)/20
         print("center found",center_x,center_y,"and move ",movex,movez)
         if abs(movez)<=0.1 and abs(movex)<=0.1:
             return 1
@@ -1232,11 +1266,59 @@ def center_fat(frame,rotation):
         code = arm.set_position_aa(target_move, speed=20,mvacc=100, wait=True)
         return 0
     else:
-        return -1   
-    return None
-    # Show the frame
+        return -1  
+    
+# def center_fat(frame,rotation):
+#     # check_saturation(frame)
+#     result=detect_white_squares(frame)
+#     if result is not None:
+#         (center, area) = result
+#         center_x, center_y = center
+#         print(center)
+#         # Calculate the side length from area
+#         side_length = int(math.sqrt(area))
+#         # Calculate top-left corner from center point
+#         x = int(center_x - side_length/2)
+#         y = int(center_y - side_length/2)
+        
+#         # Draw rectangle around detected square
+#         cv2.rectangle(frame, 
+#                     (x, y), 
+#                     (x + side_length, y + side_length), 
+#                     (0, 255, 0), 
+#                     2)
+        
+#         # Display coordinates (using center coordinates)
+#         cv2.putText(frame,  
+#                     f'({int(center_x)},{int(center_y)})', 
+#                     (x, y-5),
+#                     cv2.FONT_HERSHEY_SIMPLEX, 
+#                     0.5, 
+#                     (0, 255, 0), 
+#                     1)
+        
+#         movex=(930-center_x)/20 # 1020 IS TO THE left
+#         movez=(290-center_y)/20
+#         print("center found",center_x,center_y,"and move ",movex,movez)
+#         if abs(movez)<=0.1 and abs(movex)<=0.1:
+#             return 1
+#         print(rotation, "--------------------------------------------------")
+#         x_basis,y_basis=rotate_coordinate_plane(rotation)
+#         result=movex * x_basis
+#         print("basisx ",x_basis)
+#         print("basisy ",y_basis)
+#         print("movement ",result)
+#         code,place=arm.get_position_aa(is_radian=False)
+#         target_move=[place[0]-result[0]/2]+[place[1]-result[1]/2]+[place[2]+movez/2]+place[3:]
+        
+#         code = arm.set_position_aa(target_move, speed=20,mvacc=100, wait=True)
+#         return 0
+#     else:
+#         return -1   
+#     return None
+#     # Show the frame
             
-def move_along_vector_feedback(fatcam,arm,place,dir_move1,rotation,distance=17):
+def move_along_vector_feedback(fatcam,arm,place,dir_move1,rotation,distance=18):
 
 
     """
@@ -1253,7 +1335,6 @@ def move_along_vector_feedback(fatcam,arm,place,dir_move1,rotation,distance=17):
     center=None
     while True:
         ret1, frame1 = fatcam.read()
-        frame1=frame1[700:1300,900:2600]
         if not ret1:
             print("Failed to grab frame")
             break
@@ -1282,7 +1363,6 @@ def move_along_vector_feedback(fatcam,arm,place,dir_move1,rotation,distance=17):
         
         # Optional delay to make the visualization more visible
         time.sleep(0.1)
-class StepperController:
 
     def __init__(self, port='COM10', baud_rate=115200):
 
@@ -1340,13 +1420,126 @@ class StepperController:
 
         self.serial.close()
     
+# if __name__ == '__main__':
+#     # controller = StepperController()
+
+#     camera_tag=2
+#     lens_tag=2
+#     start()
+#     cap1,cap2,cap3,pipeline=initialize_cams()
+#     cams=(cap1,cap2,cap3,pipeline)
+#     fatcam = cv2.VideoCapture(3, cv2.CAP_MSMF)
+#     fatcam.set(cv2.CAP_PROP_FRAME_WIDTH, 3840)
+#     fatcam.set(cv2.CAP_PROP_FRAME_HEIGHT, 2160)
+#     ######################### Finding position ########################
+#     # def save_calibration(filename, tagpos1, tagpos2, tagpos3, tagpos4, 
+#     #                  rotation1, rotation2, rotation3, rotation4):
+#     #     np.savez(filename,
+#     #             tagpos1=tagpos1,
+#     #             tagpos2=tagpos2,
+#     #             tagpos3=tagpos3,
+#     #             tagpos4=tagpos4,
+#     #             rotation1=rotation1,
+#     #             rotation2=rotation2,
+#     #             rotation3=rotation3,
+#     #             rotation4=rotation4)
+#     #     print(f"Saved calibration data to {filename}")
+
+#     # tag_pos1,rotation1=find_position_of_tag(cams,8)
+#     # gohome()
+#     # tag_pos2,rotation2=find_position_of_tag(cams,9)
+#     # gohome()
+#     # tag_pos3,rotation3=find_position_of_tag(cams,10)
+#     # gohome()
+#     # tag_pos4,rotation4=find_position_of_tag(cams,11)
+#     # gohome()
+#     # print([tag_pos1,tag_pos2,tag_pos3,tag_pos4])
+#     # print([rotation1,rotation2,rotation3,rotation4])
+#     # save_calibration("interferometer.npz", 
+#     #              tag_pos1, tag_pos2, tag_pos3, tag_pos4,
+#     #              rotation1, rotation2, rotation3, rotation4)
+
+#     ###################### Placing Elements #########################
+
+#     def load_calibration(filename):
+#         data = np.load(filename)
+        
+#         # Convert NumPy arrays to Python lists
+#         tagpos1 = data['tagpos1'].tolist()
+#         tagpos2 = data['tagpos2'].tolist()
+#         tagpos3 = data['tagpos3'].tolist()
+#         tagpos4 = data['tagpos4'].tolist()
+        
+#         # For scalar values, use item() to convert to a Python scalar
+#         rotation1 = data['rotation1'].item() if isinstance(data['rotation1'], np.ndarray) else data['rotation1']
+#         rotation2 = data['rotation2'].item() if isinstance(data['rotation2'], np.ndarray) else data['rotation2']
+#         rotation3 = data['rotation3'].item() if isinstance(data['rotation3'], np.ndarray) else data['rotation3']
+#         rotation4 = data['rotation4'].item() if isinstance(data['rotation4'], np.ndarray) else data['rotation4']
+        
+#         return (tagpos1, tagpos2, tagpos3, tagpos4,
+#                 rotation1, rotation2, rotation3, rotation4)
+#     tag_pos1, tag_pos2, tag_pos3, tag_pos4, rotation1, rotation2, rotation3, rotation4 = load_calibration("interferometer.npz")
+
+#     temp_pos,temp_rotation=pickup_element_with_tag(cams,8)
+#     drop_element_at_position(arm,tag_pos1[:2]+[temp_pos[2]]+tag_pos1[3:])
+
+#     temp_pos,temp_rotation=pickup_element_with_tag(cams,10)
+#     drop_element_at_position(arm,tag_pos3[:2]+[temp_pos[2]]+tag_pos3[3:])
+
+#     temp_pos,temp_rotation=pickup_element_with_tag(cams,9)
+#     drop_element_at_position(arm,tag_pos2[:2]+[temp_pos[2]]+tag_pos2[3:])
+
+#     temp_pos,temp_rotation=pickup_element_with_tag(cams,11)
+#     drop_element_at_position(arm,tag_pos4[:2]+[temp_pos[2]]+tag_pos4[3:])
+
+
+
+
+
+#     tag_pos4,rotation4=find_position_of_tag(cams,11) 
+#     tag_pos_fat1,dir_move1=calculate_approach_vector(tag_pos4,(rotation4+90)%360)
+#     fat_position,rotation=pickup_element_with_tag(cams,1,0.038,True)
+#     move_to(arm,tag_pos_fat1)
+#     code,place=arm.get_position_aa(is_radian=False)
+    
+#     # # # print("Enabling motors...")
+#     # controller.move_all_motors(2*4096, -2*4096, 2*4096)
+#     move_along_vector(arm,place,dir_move1)
+#     move_along_vector_feedback(fatcam,arm,place,dir_move1,(rotation1+90)%360)
+#     move_along_vector(arm,place,-dir_move1,25)
+#     drop_element_at_position(arm,fat_position)
+#     gohome()
+#     # controller.power_motor(0, False)
+
+#     ########################### DEBUG ############################################
+
+#     # while True:
+#     #     ret1, frame1 = fatcam.read()
+#     #     center_fat(frame1,rotation1)
+#     #     cv2.imshow('Camera Feed', frame1)
+#     #     key = cv2.waitKey(1)
+#     #     if key == ord('q'):  # Press 'q' to quit
+#     #         break
+
+
+
+#     # # move_along_vector(arm,place,dir_move4)
+#     # # # # time.sleep(3)
+#     # # # # # rotate_motor_async(board)
+#     # # code,place=arm.get_position_aa(is_radian=False)
+#     # # move_along_vector(arm,place,-dir_move4)
+#     # # code,pos=arm.get_position_aa(is_radian=False)
+#     # # code = arm.set_position_aa(pos[:2]+[450]+pos[3:], speed=40,mvacc=40, wait=True)
+#     # # gohome()
+#     # # drop_element_at_position(arm,fat_position)
+#     # ############################################################################
+#     # # board.exit()
+#     # controller.close()
+
+
+
 if __name__ == '__main__':
-    # board = pyfirmata.Arduino('COM5')  # Adjust this to your Arduino's port
-    # pul_pin1 = 4 # Connect to PUL+ on DM542T 4/9
-    # dirp_pin1 = 3  # Connect to DIR+ on DM542T 3/7
-    # dirm_pin1 = 2  # Connect to DIR- on DM542T 2/5
-    # ena_pin1 = None # Connect to ENA+ on DM542T (optional, set to None if not used)
-    controller = StepperController()  # Adjust port as needed
+    # controller = StepperController()
 
     camera_tag=2
     lens_tag=2
@@ -1356,35 +1549,156 @@ if __name__ == '__main__':
     fatcam = cv2.VideoCapture(3, cv2.CAP_MSMF)
     fatcam.set(cv2.CAP_PROP_FRAME_WIDTH, 3840)
     fatcam.set(cv2.CAP_PROP_FRAME_HEIGHT, 2160)
+    ######################### Finding position ########################
+    # def save_calibration(filename, tagpos1, tagpos2, tagpos3, tagpos4,
+    #                  rotation1, rotation2, rotation3, rotation4):
+    #     np.savez(filename,
+    #             tagpos1=tagpos1,
+    #             tagpos2=tagpos2,
+    #             tagpos3=tagpos3,
+    #             tagpos4=tagpos4,
+    #             rotation1=rotation1,
+    #             rotation2=rotation2,
+    #             rotation3=rotation3,
+    #             rotation4=rotation4)
+    #     print(f"Saved calibration data to {filename}")
 
-    ###################### Finding position #########################
-    tag_pos1,rotation1=find_position_of_tag(cams,11) 
-    tag_pos_fat1,dir_move1=calculate_approach_vector(tag_pos1,(rotation1+90)%360)
-    fat_position,rotation=pickup_element_with_tag(cams,1,0.038,True)
-    move_to(arm,tag_pos_fat1)
-    code,place=arm.get_position_aa(is_radian=False)
-    
-    print("Enabling motors...")
-    controller.power_motor(0, True)
-    # Move motor 1
-    controller.move_motor(1, 2048*13)
-    controller.move_motor(2, -13*2048)
-    move_along_vector(arm,place,dir_move1)
-    code,place=arm.get_position_aa(is_radian=False)
-    # center_fat(arm,fatcam)
-    move_along_vector_feedback(fatcam,arm,place,dir_move1,(rotation1+90)%360)
-
-    controller.power_motor(0, False)
-
-    # move_along_vector(arm,place,dir_move4)
-    # # # time.sleep(3)
-    # # # # rotate_motor_async(board)
-    # code,place=arm.get_position_aa(is_radian=False)
-    # move_along_vector(arm,place,-dir_move4)
-    # code,pos=arm.get_position_aa(is_radian=False)
-    # code = arm.set_position_aa(pos[:2]+[450]+pos[3:], speed=40,mvacc=40, wait=True)
+    # tag_pos1,rotation1=find_position_of_tag(cams,8)
     # gohome()
+    # tag_pos2,rotation2=find_position_of_tag(cams,9)
+    # gohome()
+    # tag_pos3,rotation3=find_position_of_tag(cams,10)
+    # gohome()
+    # tag_pos4,rotation4=find_position_of_tag(cams,11)
+    # gohome()
+    # print([tag_pos1,tag_pos2,tag_pos3,tag_pos4])
+    # print([rotation1,rotation2,rotation3,rotation4])
+    # save_calibration("interferometer.npz",
+    #              tag_pos1, tag_pos2, tag_pos3, tag_pos4,
+    #              rotation1, rotation2, rotation3, rotation4)
+
+    ###################### Placing Elements #########################
+
+    epsilon=5
+   
+    def load_calibration(filename):
+        data = np.load(filename)
+       
+        # Convert NumPy arrays to Python lists
+        tagpos1 = data['tagpos1'].tolist()
+        tagpos2 = data['tagpos2'].tolist()
+        tagpos3 = data['tagpos3'].tolist()
+        tagpos4 = data['tagpos4'].tolist()
+       
+        # For scalar values, use item() to convert to a Python scalar
+        rotation1 = data['rotation1'].item() if isinstance(data['rotation1'], np.ndarray) else data['rotation1']
+        rotation2 = data['rotation2'].item() if isinstance(data['rotation2'], np.ndarray) else data['rotation2']
+        rotation3 = data['rotation3'].item() if isinstance(data['rotation3'], np.ndarray) else data['rotation3']
+        rotation4 = data['rotation4'].item() if isinstance(data['rotation4'], np.ndarray) else data['rotation4']
+       
+        return (tagpos1, tagpos2, tagpos3, tagpos4,
+                rotation1, rotation2, rotation3, rotation4)
+    tag_pos1, tag_pos2, tag_pos3, tag_pos4, rotation1, rotation2, rotation3, rotation4 = load_calibration("interferometer.npz")
+
+    temp_pos,temp_rotation=pickup_element_with_tag(cams,8)
+    drop_element_at_position(arm,tag_pos1[:2]+[temp_pos[2]]+tag_pos1[3:])
+    while(True):
+        tag_pos1_found,rotation1_found=find_position_of_tag(cams,8)
+        gohome()
+        print(np.abs(tag_pos1_found[0]-tag_pos1[0]),np.abs(tag_pos1_found[1]-tag_pos1[1]),np.abs(rotation1-rotation1_found))
+        if (np.abs(tag_pos1_found[0]-tag_pos1[0])<epsilon and np.abs(tag_pos1_found[1]-tag_pos1[1])<epsilon):
+            if (np.abs(rotation1-rotation1_found)<epsilon):
+                break;
+        print("Readjusting due to x error: ",tag_pos1_found[0]-tag_pos1[0]," y error: ",tag_pos1_found[1]-tag_pos1[1])
+        temp_pos,temp_rotation=pickup_element_with_tag(cams,8)
+        drop_element_at_position(arm,tag_pos1[:2]+[temp_pos[2]]+tag_pos1[3:])
+
+    temp_pos,temp_rotation=pickup_element_with_tag(cams,10)
+    drop_element_at_position(arm,tag_pos3[:2]+[temp_pos[2]]+tag_pos3[3:])
+    while(True):
+        tag_pos3_found,rotation3_found=find_position_of_tag(cams,10)
+        gohome()
+        print(np.abs(tag_pos3_found[0]-tag_pos3[0]),np.abs(tag_pos3_found[1]-tag_pos3[1]),np.abs(rotation3-rotation3_found))
+
+        if (np.abs(tag_pos3_found[0]-tag_pos3[0])<epsilon and np.abs(tag_pos3_found[1]-tag_pos3[1])<epsilon):
+            if (np.abs(rotation3-rotation3_found)<epsilon):
+                break;
+        print("Readjusting due to x error: ",tag_pos3_found[0]-tag_pos3[0]," y error: ",tag_pos3_found[1]-tag_pos3[1])
+        temp_pos,temp_rotation=pickup_element_with_tag(cams,10)
+        drop_element_at_position(arm,tag_pos3[:2]+[temp_pos[2]]+tag_pos3[3:])
+
+    temp_pos,temp_rotation=pickup_element_with_tag(cams,9)
+    drop_element_at_position(arm,tag_pos2[:2]+[temp_pos[2]]+tag_pos2[3:])
+    while(True):
+        tag_pos2_found,rotation2_found=find_position_of_tag(cams,9)
+        gohome()
+        print(np.abs(tag_pos2_found[0]-tag_pos2[0]),np.abs(tag_pos2_found[1]-tag_pos2[1]),np.abs(rotation2-rotation2_found))
+
+        if (np.abs(tag_pos2_found[0]-tag_pos2[0])<epsilon and np.abs(tag_pos2_found[1]-tag_pos2[1])<epsilon):
+            if (np.abs(rotation2-rotation2_found)<10):
+                break;
+        print("Readjusting due to x error: ",tag_pos2_found[0]-tag_pos2[0]," y error: ",tag_pos2_found[1]-tag_pos2[1])
+        temp_pos,temp_rotation=pickup_element_with_tag(cams,9)
+        drop_element_at_position(arm,tag_pos2[:2]+[temp_pos[2]]+tag_pos2[3:])
+    # print("HEREEEEEEEEEEEEEEEEEEEEEEE")
+    temp_pos,temp_rotation=pickup_element_with_tag(cams,11)
+    drop_element_at_position(arm,tag_pos4[:2]+[temp_pos[2]]+tag_pos4[3:])
+
+    while(True):
+        tag_pos4_found,rotation4_found=find_position_of_tag(cams,11)
+        gohome()
+        print(np.abs(tag_pos4_found[0]-tag_pos4[0]),np.abs(tag_pos4_found[1]-tag_pos4[1]),np.abs(rotation4-rotation4_found))
+
+        if (np.abs(tag_pos4_found[0]-tag_pos4[0])<epsilon and np.abs(tag_pos4_found[1]-tag_pos4[1])<epsilon):
+            if (np.abs(rotation4-rotation4_found)<epsilon):
+                break;
+        print("Readjusting due to x error: ",tag_pos4_found[0]-tag_pos4[0]," y error: ",tag_pos4_found[1]-tag_pos4[1])
+        temp_pos,temp_rotation=pickup_element_with_tag(cams,11)
+        drop_element_at_position(arm,tag_pos4[:2]+[temp_pos[2]]+tag_pos4[3:])
+
+
+    # tag_pos4,rotation4=find_position_of_tag(cams,11)
+    # tag_pos_fat1,dir_move1=calculate_approach_vector(tag_pos4,(rotation4+90)%360)
+    # fat_position,rotation=pickup_element_with_tag(cams,1,0.038,True)
+    # move_to(arm,tag_pos_fat1)
+    # code,place=arm.get_position_aa(is_radian=False)
+   
+    # # # # print("Enabling motors...")
+    # # controller.move_all_motors(2*4096, -2*4096, 2*4096)
+    # move_along_vector(arm,place,dir_move1)
+    # move_along_vector_feedback(fatcam,arm,place,dir_move1,(rotation1+90)%360)
+    # move_along_vector(arm,place,-dir_move1,25)
     # drop_element_at_position(arm,fat_position)
-    ############################################################################
-    # board.exit()
-    controller.close()
+    # gohome()
+
+
+
+
+
+
+    # controller.power_motor(0, False)
+
+    ########################### DEBUG ############################################
+
+    # while True:
+    #     ret1, frame1 = fatcam.read()
+    #     center_fat(frame1,rotation1)
+    #     cv2.imshow('Camera Feed', frame1)
+    #     key = cv2.waitKey(1)
+    #     if key == ord('q'):  # Press 'q' to quit
+    #         break
+
+
+
+    # # move_along_vector(arm,place,dir_move4)
+    # # # # time.sleep(3)
+    # # # # # rotate_motor_async(board)
+    # # code,place=arm.get_position_aa(is_radian=False)
+    # # move_along_vector(arm,place,-dir_move4)
+    # # code,pos=arm.get_position_aa(is_radian=False)
+    # # code = arm.set_position_aa(pos[:2]+[450]+pos[3:], speed=40,mvacc=40, wait=True)
+    # # gohome()
+    # # drop_element_at_position(arm,fat_position)
+    # ############################################################################
+    # # board.exit()
+    # controller.close()
