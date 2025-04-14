@@ -56,8 +56,15 @@ from xarm.wrapper import XArmAPI
 #             sys.exit(1)
 # def hangle_err_warn_changed(item):
 #     print('ErrorCode: {}, WarnCode: {}'.format(item['error_code'], item['warn_code']))
+# GUI motor controller for FAT
+import tkinter as tk
+from tkinter import ttk
+import serial
+import time
+
 class StepperController:
     def __init__(self, port='COM12', baud_rate=115200):
+
         self.serial = serial.Serial(port, baud_rate, timeout=1)
         time.sleep(2)  # Allow time for Arduino to reset
        
@@ -97,6 +104,177 @@ class StepperController:
     def close(self):
         """Close the serial connection"""
         self.serial.close()
+
+def create_motor_control_gui(controller):
+    """
+    Create and run a GUI for controlling stepper motors using directional buttons
+   
+    Args:
+        controller: An instance of StepperController
+       
+    Returns:
+        None (exits when the GUI is closed)
+    """
+    # Create main window
+    root = tk.Tk()
+    root.title("Stepper Motor Control")
+    root.geometry("500x500")
+    root.resizable(False, False)
+   
+    # Motor configuration frame
+    config_frame = ttk.LabelFrame(root, text="Motor Configuration")
+    config_frame.pack(padx=10, pady=10, fill="x")
+   
+    # Step size entries
+    ttk.Label(config_frame, text="Motor 1 (Vertical) Steps:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
+    motor1_steps = ttk.Entry(config_frame, width=10)
+    motor1_steps.grid(row=0, column=1, padx=5, pady=5)
+    motor1_steps.insert(0, "2048")
+   
+    ttk.Label(config_frame, text="Motor 3 (Horizontal) Steps:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
+    motor3_steps = ttk.Entry(config_frame, width=10)
+    motor3_steps.grid(row=1, column=1, padx=5, pady=5)
+    motor3_steps.insert(0, "2048")
+   
+    # Power controls
+    power_frame = ttk.LabelFrame(root, text="Power Control")
+    power_frame.pack(padx=10, pady=10, fill="x")
+   
+    def toggle_power():
+        if power_var.get():
+            controller.power_motor(0, True)
+            status_var.set("Motors: ENABLED")
+        else:
+            controller.power_motor(0, False)
+            status_var.set("Motors: DISABLED")
+   
+    power_var = tk.BooleanVar(value=True)
+    power_check = ttk.Checkbutton(power_frame, text="Enable Motors", variable=power_var, command=toggle_power)
+    power_check.grid(row=0, column=0, padx=5, pady=5)
+   
+    # Initialize motors to enabled state
+    controller.power_motor(0, True)
+   
+    # Status bar
+    status_var = tk.StringVar(value="Motors: ENABLED")
+    status_bar = ttk.Label(root, textvariable=status_var, relief="sunken", anchor="w")
+    status_bar.pack(side="bottom", fill="x")
+   
+    # Direction controls frame
+    dir_frame = ttk.LabelFrame(root, text="Direction Control")
+    dir_frame.pack(padx=10, pady=10, expand=True)
+   
+    # Button size and padding
+    btn_width = 3
+    btn_padding = 5
+   
+    # Functions for button actions
+    def move_up():
+        steps = int(motor1_steps.get())
+        status_var.set(f"Moving Motor 1 UP ({steps} steps)")
+        controller.move_motor(1, steps)
+   
+    def move_down():
+        steps = int(motor1_steps.get())
+        status_var.set(f"Moving Motor 1 DOWN ({-steps} steps)")
+        controller.move_motor(1, -steps)
+   
+    def move_left():
+        steps = int(motor3_steps.get())
+        status_var.set(f"Moving Motor 3 LEFT ({steps} steps)")
+        controller.move_motor(3, steps)
+   
+    def move_right():
+        steps = int(motor3_steps.get())
+        status_var.set(f"Moving Motor 3 RIGHT ({-steps} steps)")
+        controller.move_motor(3, -steps)
+   
+    def move_up_left():
+        steps1 = int(motor1_steps.get())
+        steps3 = int(motor3_steps.get())
+        status_var.set(f"Moving UP-LEFT (Motor 1: {steps1}, Motor 3: {steps3})")
+        controller.move_all_motors(steps1, 0, steps3)
+   
+    def move_up_right():
+        steps1 = int(motor1_steps.get())
+        steps3 = int(motor3_steps.get())
+        status_var.set(f"Moving UP-RIGHT (Motor 1: {steps1}, Motor 3: {-steps3})")
+        controller.move_all_motors(steps1, 0, -steps3)
+   
+    def move_down_left():
+        steps1 = int(motor1_steps.get())
+        steps3 = int(motor3_steps.get())
+        status_var.set(f"Moving DOWN-LEFT (Motor 1: {-steps1}, Motor 3: {steps3})")
+        controller.move_all_motors(-steps1, 0, steps3)
+   
+    def move_down_right():
+        steps1 = int(motor1_steps.get())
+        steps3 = int(motor3_steps.get())
+        status_var.set(f"Moving DOWN-RIGHT (Motor 1: {-steps1}, Motor 3: {-steps3})")
+        controller.move_all_motors(-steps1, 0, -steps3)
+   
+    # Create and place arrow buttons in a grid layout
+    # Up-Left button
+    btn_up_left = ttk.Button(dir_frame, text="↖", width=btn_width, command=move_up_left)
+    btn_up_left.grid(row=0, column=0, padx=btn_padding, pady=btn_padding)
+   
+    # Up button
+    btn_up = ttk.Button(dir_frame, text="↑", width=btn_width, command=move_up)
+    btn_up.grid(row=0, column=1, padx=btn_padding, pady=btn_padding)
+   
+    # Up-Right button
+    btn_up_right = ttk.Button(dir_frame, text="↗", width=btn_width, command=move_up_right)
+    btn_up_right.grid(row=0, column=2, padx=btn_padding, pady=btn_padding)
+   
+    # Left button
+    btn_left = ttk.Button(dir_frame, text="←", width=btn_width, command=move_left)
+    btn_left.grid(row=1, column=0, padx=btn_padding, pady=btn_padding)
+   
+    # Center (empty)
+    ttk.Label(dir_frame, text="", width=btn_width).grid(row=1, column=1)
+   
+    # Right button
+    btn_right = ttk.Button(dir_frame, text="→", width=btn_width, command=move_right)
+    btn_right.grid(row=1, column=2, padx=btn_padding, pady=btn_padding)
+   
+    # Down-Left button
+    btn_down_left = ttk.Button(dir_frame, text="↙", width=btn_width, command=move_down_left)
+    btn_down_left.grid(row=2, column=0, padx=btn_padding, pady=btn_padding)
+   
+    # Down button
+    btn_down = ttk.Button(dir_frame, text="↓", width=btn_width, command=move_down)
+    btn_down.grid(row=2, column=1, padx=btn_padding, pady=btn_padding)
+   
+    # Down-Right button
+    btn_down_right = ttk.Button(dir_frame, text="↘", width=btn_width, command=move_down_right)
+    btn_down_right.grid(row=2, column=2, padx=btn_padding, pady=btn_padding)
+   
+    # Style buttons to be larger
+    for child in dir_frame.winfo_children():
+        if isinstance(child, ttk.Button):
+            child.configure(style="Large.TButton")
+   
+    # Create a large button style
+    style = ttk.Style()
+    style.configure("Large.TButton", font=("Arial", 14))
+   
+    # Exit button
+    def exit_program():
+        controller.power_motor(0, False)  # Disable all motors before exiting
+        root.destroy()
+   
+    exit_btn = ttk.Button(root, text="Exit", command=exit_program)
+    exit_btn.pack(pady=10)
+   
+    # Handle window close event
+    root.protocol("WM_DELETE_WINDOW", exit_program)
+   
+    # Start the GUI event loop
+    root.mainloop()
+
+
+    
+
  
 arm = XArmAPI("192.168.1.241")
 arm.motion_enable(enable=True)
@@ -256,7 +434,7 @@ def pickup_claw(arm,coor,pipeline,target_id,special=False):
     speeds=80
     x=coor[0]
     y=coor[1]
-
+    high_start=[146,6.1,560]+coor[3:]
     new_angle=math.atan2(y,x)/math.pi*180
     new_angle+=180
     quad=0
@@ -296,7 +474,8 @@ def pickup_claw(arm,coor,pipeline,target_id,special=False):
         arm.set_gripper_position(530,wait=True)
 
     arm.set_tcp_load(weight=0.8, center_of_gravity=(0.06125, 0.0458, 0.0375))
-    code = arm.set_position_aa(place[:2]+[400]+place[3:], speed=speeds,mvacc=100, wait=True)
+    code = arm.set_position_aa(place[:2]+[550]+place[3:], speed=100,mvacc=100, wait=True)
+    code = arm.set_position_aa(high_start, speed=100,mvacc=100, wait=True)
     code = arm.set_servo_angle(angle=[180,75,-180,20,0,90,-60],is_radian=False,speed=speeds)
 
     return pickup_pos,rotation
@@ -343,8 +522,8 @@ def pickup_claw_stay(arm,coor,pipeline):
 def drop_claw(arm,coor):
     code = arm.set_gripper_speed(1000)
     print("coor",coor)
-    highcoor=coor[:2]+[500]+coor[3:]
-    endcoor=coor[:2]+[500]+coor[3:]
+    highcoor=coor[:2]+[550]+coor[3:]
+    endcoor=coor[:2]+[550]+coor[3:]
     x=coor[0]
     y=coor[1]
     new_angle=math.atan2(y,x)/math.pi*180
@@ -360,8 +539,11 @@ def drop_claw(arm,coor):
     else:
         quad=4
     mid_coor=coor[:2]+[coor[2]+1.5]+coor[3:]
+    high_start=[146,6.1,560]+coor[3:]
+    
+    code = arm.set_position_aa(high_start,is_radian=False, speed=100,  mvacc=100, wait=True)
     code=arm.set_servo_angle(servo_id=1,wait=True,angle=new_angle,is_radian=False,speed=50)
-    code = arm.set_position_aa(highcoor,is_radian=False, speed=80,  mvacc=100, wait=True)
+    code = arm.set_position_aa(highcoor,is_radian=False, speed=100,  mvacc=100, wait=True)
     code = arm.set_position_aa(mid_coor,is_radian=False, speed=80,  mvacc=100, wait=True)
     code = arm.set_position_aa(coor,is_radian=False, speed=20,  mvacc=100, wait=True)
     arm.set_gripper_position(850,wait=True)
@@ -872,8 +1054,10 @@ def offset_coor(boxes,coor):
     return [coor[0]]+[coor[1]-boxes*105]+coor[2:]
 def gohome():
     code,place=arm.get_position_aa(is_radian=False)
-    code = arm.set_position_aa(place[:2]+[400]+place[3:], speed=80,mvacc=100, wait=True)
-    code=arm.set_servo_angle(angle=[180,75,-180,20,0,90,-60],speed=60,is_radian=False,wait=True)
+    code = arm.set_position_aa(place[:2]+[550]+place[3:], speed=100,mvacc=100, wait=True)
+    high_start=[146,6.1,560]+place[3:]
+    code = arm.set_position_aa(high_start, speed=100,mvacc=100, wait=True)
+    code=arm.set_servo_angle(angle=[180,75,-180,20,0,90,-60],speed=100,is_radian=False,wait=True)
 def readings(cams,step_size,steps):
     cap1,cap2,cap3,pipeline=cams
     centered=False
@@ -1232,7 +1416,7 @@ def process_video_stream(cap):
         # Clean up
         cv2.destroyAllWindows()
 
-def center_fat(frame,rotation):
+def center_fat(frame,rotation,tag):
     
 
     corners, id1 = detect_aruco(frame,12)
@@ -1249,8 +1433,12 @@ def center_fat(frame,rotation):
                     2)
         
         # Display coordinates (using center coordinates)
-        movex=(1895-center_x)/20 # greater IS TO THE left
-        movez=(1235-center_y)/20
+        movex=(1853-center_x)/20 # positice is left
+        movez=(1231-center_y)/20 # down is down
+        if tag==11:
+            print("****************************************************************")
+            movex=(1853-center_x)/20
+            movez=(1231-center_y)/20
         print("center found",center_x,center_y,"and move ",movex,movez)
         if abs(movez)<=0.1 and abs(movex)<=0.1:
             return 1
@@ -1318,12 +1506,10 @@ def center_fat(frame,rotation):
 #     return None
 #     # Show the frame
             
-def move_along_vector_feedback(fatcam,arm,place,dir_move1,rotation,distance=18):
-
-
+def move_along_vector_feedback(fatcam, arm, place, dir_move1, rotation, tag=11, distance=20.7):
     """
     Move the robot arm along a vector in steps.
-
+    
     Parameters:
     - arm: The robot arm object.
     - start_pose: Starting pose of the robot arm.
@@ -1331,39 +1517,56 @@ def move_along_vector_feedback(fatcam,arm,place,dir_move1,rotation,distance=18):
     - steps: Number of steps to approach the tag.
     - step_distance: Distance moved in each step (mm).
     """
-    current_steps=distance-1
-    center=None
+    
+    
+    # Create the centering folder if it doesn't exist
+    if not os.path.exists("centering"):
+        os.makedirs("centering")
+    
+    # Create a unique subfolder for this run using timestamp
+    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    run_folder = os.path.join("centering", f"run_{timestamp}")
+    os.makedirs(run_folder)
+    
+    current_steps = distance-1
+    center = None
+    frame_count = 0
+    
     while True:
         ret1, frame1 = fatcam.read()
         if not ret1:
             print("Failed to grab frame")
             break
-        
+            
         # Make a copy of the frame for display
         display_frame = frame1.copy()
-        
+            
         # Process frame with center_fat
-        centered = center_fat(display_frame,rotation)
+        centered = center_fat(display_frame, rotation, tag)
         
+        # Save the frame in the run-specific folder
+        frame_filename = os.path.join(run_folder, f"frame_{frame_count:04d}.jpg")
+        cv2.imwrite(frame_filename, display_frame)
+        frame_count += 1
+            
         # Show the processed frame
         cv2.imshow('Camera Feed', display_frame)
-        
+            
         # Add wait key for proper display and exit condition
         key = cv2.waitKey(1)
         if key == ord('q'):  # Press 'q' to quit
             break
-            
+                
         if centered == 1:
-            print("Target centered")
-            code,place=arm.get_position_aa(is_radian=False)
-            move_along_vector(arm,place,dir_move1,distance)
+            print(f"Target centered - frames saved to {run_folder}")
+            code, place = arm.get_position_aa(is_radian=False)
+            move_along_vector(arm, place, dir_move1, distance)
             return
         elif centered == -1:
             print("No target detected")
-        
+            
         # Optional delay to make the visualization more visible
         time.sleep(0.1)
-
     def __init__(self, port='COM10', baud_rate=115200):
 
         self.serial = serial.Serial(port, baud_rate, timeout=1)
@@ -1539,7 +1742,7 @@ def move_along_vector_feedback(fatcam,arm,place,dir_move1,rotation,distance=18):
 
 
 if __name__ == '__main__':
-    # controller = StepperController()
+    controller = StepperController()
 
     camera_tag=2
     lens_tag=2
@@ -1600,82 +1803,170 @@ if __name__ == '__main__':
                 rotation1, rotation2, rotation3, rotation4)
     tag_pos1, tag_pos2, tag_pos3, tag_pos4, rotation1, rotation2, rotation3, rotation4 = load_calibration("interferometer.npz")
 
-    temp_pos,temp_rotation=pickup_element_with_tag(cams,8)
-    drop_element_at_position(arm,tag_pos1[:2]+[temp_pos[2]]+tag_pos1[3:])
-    while(True):
-        tag_pos1_found,rotation1_found=find_position_of_tag(cams,8)
-        gohome()
-        print(np.abs(tag_pos1_found[0]-tag_pos1[0]),np.abs(tag_pos1_found[1]-tag_pos1[1]),np.abs(rotation1-rotation1_found))
-        if (np.abs(tag_pos1_found[0]-tag_pos1[0])<epsilon and np.abs(tag_pos1_found[1]-tag_pos1[1])<epsilon):
-            if (np.abs(rotation1-rotation1_found)<epsilon):
-                break;
-        print("Readjusting due to x error: ",tag_pos1_found[0]-tag_pos1[0]," y error: ",tag_pos1_found[1]-tag_pos1[1])
-        temp_pos,temp_rotation=pickup_element_with_tag(cams,8)
-        drop_element_at_position(arm,tag_pos1[:2]+[temp_pos[2]]+tag_pos1[3:])
+    # temp_pos,temp_rotation=pickup_element_with_tag(cams,8)
+    # drop_element_at_position(arm,tag_pos1[:2]+[temp_pos[2]]+tag_pos1[3:])
+    # while(True):
+    #     tag_pos1_found,rotation1_found=find_position_of_tag(cams,8)
+    #     print(np.abs(tag_pos1_found[0]-tag_pos1[0]),np.abs(tag_pos1_found[1]-tag_pos1[1]),np.abs(rotation1-rotation1_found))
+    #     if (np.abs(tag_pos1_found[0]-tag_pos1[0])<epsilon and np.abs(tag_pos1_found[1]-tag_pos1[1])<epsilon):
+    #         if (np.abs(rotation1-rotation1_found)<epsilon):
+    #             break
+    #     print("Readjusting due to x error: ",tag_pos1_found[0]-tag_pos1[0]," y error: ",tag_pos1_found[1]-tag_pos1[1])
+    #     user_input = input("Continue with readjustment? (y/n): ").strip().lower()
+    #     if user_input == 'n':
+    #         print("Stopping readjustment loop.")
+    #         break
+    #     elif user_input == 'y':
+    #         temp_pos, temp_rotation = pickup_element_with_tag(cams, 8)
+    #         drop_element_at_position(arm, tag_pos1[:2]+[temp_pos[2]]+tag_pos1[3:])
+    #     else:
+    #         print("Invalid input. Please enter 'y' or 'n'. Continuing by default.")
+    #         temp_pos,temp_rotation=pickup_element_with_tag(cams,8)
+    #         drop_element_at_position(arm,tag_pos1[:2]+[temp_pos[2]]+tag_pos1[3:])
 
-    temp_pos,temp_rotation=pickup_element_with_tag(cams,10)
-    drop_element_at_position(arm,tag_pos3[:2]+[temp_pos[2]]+tag_pos3[3:])
-    while(True):
-        tag_pos3_found,rotation3_found=find_position_of_tag(cams,10)
-        gohome()
-        print(np.abs(tag_pos3_found[0]-tag_pos3[0]),np.abs(tag_pos3_found[1]-tag_pos3[1]),np.abs(rotation3-rotation3_found))
+    # temp_pos,temp_rotation=pickup_element_with_tag(cams,10)
+    # drop_element_at_position(arm,tag_pos3[:2]+[temp_pos[2]]+tag_pos3[3:])
+    # while(True):
+    #     tag_pos3_found,rotation3_found=find_position_of_tag(cams,10)
+    #     print(np.abs(tag_pos3_found[0]-tag_pos3[0]),np.abs(tag_pos3_found[1]-tag_pos3[1]),np.abs(rotation3-rotation3_found))
 
-        if (np.abs(tag_pos3_found[0]-tag_pos3[0])<epsilon and np.abs(tag_pos3_found[1]-tag_pos3[1])<epsilon):
-            if (np.abs(rotation3-rotation3_found)<epsilon):
-                break;
-        print("Readjusting due to x error: ",tag_pos3_found[0]-tag_pos3[0]," y error: ",tag_pos3_found[1]-tag_pos3[1])
-        temp_pos,temp_rotation=pickup_element_with_tag(cams,10)
-        drop_element_at_position(arm,tag_pos3[:2]+[temp_pos[2]]+tag_pos3[3:])
+    #     if (np.abs(tag_pos3_found[0]-tag_pos3[0])<epsilon and np.abs(tag_pos3_found[1]-tag_pos3[1])<epsilon):
+    #         if (np.abs(rotation3-rotation3_found)<epsilon):
+    #             break
+    #     print("Readjusting due to x error: ",tag_pos3_found[0]-tag_pos3[0]," y error: ",tag_pos3_found[1]-tag_pos3[1])
+    #     user_input = input("Continue with readjustment? (y/n): ").strip().lower()
+    #     if user_input == 'n':
+    #         print("Stopping readjustment loop.")
+    #         break
+    #     elif user_input == 'y':
+    #         temp_pos, temp_rotation = pickup_element_with_tag(cams, 10)
+    #         drop_element_at_position(arm, tag_pos3[:2]+[temp_pos[2]]+tag_pos3[3:])
+    #     else:
+    #         print("Invalid input. Please enter 'y' or 'n'. Continuing by default.")
+    #         temp_pos,temp_rotation=pickup_element_with_tag(cams,10)
+    #         drop_element_at_position(arm,tag_pos3[:2]+[temp_pos[2]]+tag_pos3[3:])
 
-    temp_pos,temp_rotation=pickup_element_with_tag(cams,9)
-    drop_element_at_position(arm,tag_pos2[:2]+[temp_pos[2]]+tag_pos2[3:])
-    while(True):
-        tag_pos2_found,rotation2_found=find_position_of_tag(cams,9)
-        gohome()
-        print(np.abs(tag_pos2_found[0]-tag_pos2[0]),np.abs(tag_pos2_found[1]-tag_pos2[1]),np.abs(rotation2-rotation2_found))
+    # temp_pos,temp_rotation=pickup_element_with_tag(cams,9)
+    # drop_element_at_position(arm,tag_pos2[:2]+[temp_pos[2]]+tag_pos2[3:])
+    # while(True):
+    #     tag_pos2_found,rotation2_found=find_position_of_tag(cams,9)
+    #     print(np.abs(tag_pos2_found[0]-tag_pos2[0]),np.abs(tag_pos2_found[1]-tag_pos2[1]),np.abs(rotation2-rotation2_found))
 
-        if (np.abs(tag_pos2_found[0]-tag_pos2[0])<epsilon and np.abs(tag_pos2_found[1]-tag_pos2[1])<epsilon):
-            if (np.abs(rotation2-rotation2_found)<10):
-                break;
-        print("Readjusting due to x error: ",tag_pos2_found[0]-tag_pos2[0]," y error: ",tag_pos2_found[1]-tag_pos2[1])
-        temp_pos,temp_rotation=pickup_element_with_tag(cams,9)
-        drop_element_at_position(arm,tag_pos2[:2]+[temp_pos[2]]+tag_pos2[3:])
-    # print("HEREEEEEEEEEEEEEEEEEEEEEEE")
-    temp_pos,temp_rotation=pickup_element_with_tag(cams,11)
-    drop_element_at_position(arm,tag_pos4[:2]+[temp_pos[2]]+tag_pos4[3:])
-
-    while(True):
-        tag_pos4_found,rotation4_found=find_position_of_tag(cams,11)
-        gohome()
-        print(np.abs(tag_pos4_found[0]-tag_pos4[0]),np.abs(tag_pos4_found[1]-tag_pos4[1]),np.abs(rotation4-rotation4_found))
-
-        if (np.abs(tag_pos4_found[0]-tag_pos4[0])<epsilon and np.abs(tag_pos4_found[1]-tag_pos4[1])<epsilon):
-            if (np.abs(rotation4-rotation4_found)<epsilon):
-                break;
-        print("Readjusting due to x error: ",tag_pos4_found[0]-tag_pos4[0]," y error: ",tag_pos4_found[1]-tag_pos4[1])
-        temp_pos,temp_rotation=pickup_element_with_tag(cams,11)
-        drop_element_at_position(arm,tag_pos4[:2]+[temp_pos[2]]+tag_pos4[3:])
+    #     if (np.abs(tag_pos2_found[0]-tag_pos2[0])<epsilon and np.abs(tag_pos2_found[1]-tag_pos2[1])<epsilon):
+    #         if (np.abs(rotation2-rotation2_found)<10):
+    #             break
+    #     print("Readjusting due to x error: ",tag_pos2_found[0]-tag_pos2[0]," y error: ",tag_pos2_found[1]-tag_pos2[1])
+    #     user_input = input("Continue with readjustment? (y/n): ").strip().lower()
+    #     if user_input == 'n':
+    #         print("Stopping readjustment loop.")
+    #         break
+    #     elif user_input == 'y':
+    #         temp_pos, temp_rotation = pickup_element_with_tag(cams, 9)
+    #         drop_element_at_position(arm, tag_pos2[:2]+[temp_pos[2]]+tag_pos2[3:])
+    #     else:
+    #         print("Invalid input. Please enter 'y' or 'n'. Continuing by default.")
+    #         temp_pos,temp_rotation=pickup_element_with_tag(cams,9)
+    #         drop_element_at_position(arm,tag_pos2[:2]+[temp_pos[2]]+tag_pos2[3:])
 
 
-    # tag_pos4,rotation4=find_position_of_tag(cams,11)
-    # tag_pos_fat1,dir_move1=calculate_approach_vector(tag_pos4,(rotation4+90)%360)
-    # fat_position,rotation=pickup_element_with_tag(cams,1,0.038,True)
-    # move_to(arm,tag_pos_fat1)
-    # code,place=arm.get_position_aa(is_radian=False)
+    # temp_pos,temp_rotation=pickup_element_with_tag(cams,11)
+    # drop_element_at_position(arm,tag_pos4[:2]+[temp_pos[2]]+tag_pos4[3:])
+    # while(True):
+    #     tag_pos4_found,rotation4_found=find_position_of_tag(cams,11)
+    #     print(np.abs(tag_pos4_found[0]-tag_pos4[0]),np.abs(tag_pos4_found[1]-tag_pos4[1]),np.abs(rotation4-rotation4_found))
+
+    #     if (np.abs(tag_pos4_found[0]-tag_pos4[0])<epsilon and np.abs(tag_pos4_found[1]-tag_pos4[1])<epsilon):
+    #         if (np.abs(rotation4-rotation4_found)<epsilon):
+    #             break
+
+
+    #     print("Readjusting due to x error: ",tag_pos4_found[0]-tag_pos4[0]," y error: ",tag_pos4_found[1]-tag_pos4[1])
+
+    #     user_input = input("Continue with readjustment? (y/n): ").strip().lower()
+    #     if user_input == 'n':
+    #         print("Stopping readjustment loop.")
+    #         break
+    #     elif user_input == 'y':
+    #         temp_pos, temp_rotation = pickup_element_with_tag(cams, 11)
+    #         drop_element_at_position(arm, tag_pos4[:2]+[temp_pos[2]]+tag_pos4[3:])
+    #     else:
+    #         print("Invalid input. Please enter 'y' or 'n'. Continuing by default.")
+    #         temp_pos,temp_rotation=pickup_element_with_tag(cams,11)
+    #         drop_element_at_position(arm,tag_pos4[:2]+[temp_pos[2]]+tag_pos4[3:])
+
+
+    # ######################################## block and align ##########################################
+
+    # tag_pos4,rotation4=find_position_of_tag(cams,9)
+
+    # block_pos,temp_rotation=pickup_element_with_tag(cams,2,0.038)
+    # drop_element_at_position(arm,[tag_pos4[0]+16+62]+[tag_pos4[1]]+[block_pos[2]]+tag_pos4[3:])
+
+
+    tag_pos4,rotation4=find_position_of_tag(cams,11)
+    tag_pos_fat1,dir_move1=calculate_approach_vector(tag_pos4,(rotation4+90)%360)
+    fat_position,rotation=pickup_element_with_tag(cams,1,0.038,True)
+    move_to(arm,tag_pos_fat1)
+    code,place=arm.get_position_aa(is_radian=False)
    
-    # # # # print("Enabling motors...")
-    # # controller.move_all_motors(2*4096, -2*4096, 2*4096)
-    # move_along_vector(arm,place,dir_move1)
-    # move_along_vector_feedback(fatcam,arm,place,dir_move1,(rotation1+90)%360)
-    # move_along_vector(arm,place,-dir_move1,25)
-    # drop_element_at_position(arm,fat_position)
+    # # # print("Enabling motors...")
+    # controller.move_all_motors(2*4096, -2*4096, 2*4096)
+
+    move_along_vector(arm,place,dir_move1)
+    controller.move_all_motors(2024*5, -2024, 2024*5)  # Different steps for each motor
+    move_along_vector_feedback(fatcam,arm,place,dir_move1,(rotation4+90)%360,11)
+
+    try:
+        # Launch GUI
+        create_motor_control_gui(controller)
+    except Exception as e:
+        print(f"Error: {e}")
+
+    
+    move_along_vector(arm,place,-dir_move1,25)
+    gohome()
+    drop_element_at_position(arm,fat_position)
+    # gohome()
+
+    ################################ block and align #########################################
+
+
+    tag_pos4,rotation4=find_position_of_tag(cams,11)
+
+    temp_pos,temp_rotation=pickup_element_with_tag(cams,2,0.038)
+    drop_element_at_position(arm,[tag_pos4[0]]+[tag_pos4[1]+16+70]+[temp_pos[2]]+tag_pos4[3:])
+
+    tag_pos4,rotation4=find_position_of_tag(cams,9)
+    tag_pos_fat1,dir_move1=calculate_approach_vector(tag_pos4,(rotation4+90)%360)
+    fat_position,rotation=pickup_element_with_tag(cams,1,0.038,True)
+    high_start=[146,6.1,560]+tag_pos3[3:]
+    move_to(arm,high_start)
+    move_to(arm,tag_pos_fat1)
+
+    code,place=arm.get_position_aa(is_radian=False)
+   
+    # # # print("Enabling motors...")
+    # controller.move_all_motors(2*4096, -2*4096, 2*4096)
+    move_along_vector(arm,place,dir_move1)
+    controller.move_all_motors(2024*5, -2024*5, 2024*5)  # Different steps for each motor
+    move_along_vector_feedback(fatcam,arm,place,dir_move1,(rotation4+90)%360,10,20.7)
+
+    try:
+        # Launch GUI
+        create_motor_control_gui(controller)
+    except Exception as e:
+        print(f"Error: {e}")
+
+    move_along_vector(arm,place,-dir_move1,25)
+    gohome()
+    drop_element_at_position(arm,fat_position)
     # gohome()
 
 
-
-
-
-
+    temp_pos,temp_rotation=pickup_element_with_tag(cams,2,0.038)
+    drop_element_at_position(arm,block_pos)
+    # gohome()
+    # fat_position,rotation=pickup_element_with_tag(cams,2,0.032)
     # controller.power_motor(0, False)
 
     ########################### DEBUG ############################################
